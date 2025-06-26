@@ -1,0 +1,180 @@
+.transaction-list {
+  background-color: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-top: 2rem;
+}
+
+.transaction-list h2 {
+  margin-bottom: 1.5rem;
+}
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  min-width: 200px;
+}
+
+.sort-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sort-btn {
+  padding: 0.5rem 1rem;
+  background-color: #f7fafc;
+  color: #4a5568;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.sort-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.sort-btn.active {
+  background-color: #667eea;
+  color: white;
+}
+
+.transaction-table {
+  overflow-x: auto;
+}
+
+.transaction-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.transaction-table th {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 2px solid #e2e8f0;
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.transaction-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #f7fafc;
+}
+
+.transaction-table tr:hover {
+  background-color: #f7fafc;
+}
+
+.description {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.merchant {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.original {
+  font-size: 0.875rem;
+  color: #a0aec0;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: #e2e8f0;
+  color: #4a5568;
+}
+
+.category-badge.food-dining {
+  background-color: #fed7d7;
+  color: #742a2a;
+}
+
+.category-badge.shopping {
+  background-color: #feebc8;
+  color: #744210;
+}
+
+.category-badge.transportation {
+  background-color: #e6fffa;
+  color: #234e52;
+}
+
+.category-badge.bills-utilities {
+  background-color: #e9d8fd;
+  color: #44337a;
+}
+
+.category-badge.entertainment {
+  background-color: #fbb6ce;
+  color: #702459;
+}
+
+.category-badge.healthcare {
+  background-color: #b2f5ea;
+  color: #234e52;
+}
+
+.amount {
+  font-weight: 600;
+  text-align: right;
+}
+
+.amount.debit {
+  color: #e53e3e;
+}
+
+.amount.credit {
+  color: #38a169;
+}
+
+.balance {
+  text-align: right;
+  color: #4a5568;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .transaction-list {
+    padding: 1rem;
+  }
+  
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-select {
+    width: 100%;
+  }
+  
+  .sort-controls {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .transaction-table {
+    font-size: 0.875rem;
+  }
+  
+  .transaction-table th,
+  .transaction-table td {
+    padding: 0.5rem;
+  }
+}
