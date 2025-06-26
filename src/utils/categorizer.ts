@@ -1,4 +1,4 @@
-import { Transaction, EXPENSE_CATEGORIES } from '../types';
+import { Transaction } from '../types';
 
 // Category keywords for rule-based categorization (fallback when AI is not available)
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
