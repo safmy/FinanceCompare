@@ -4,8 +4,8 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "cd api && pip install -r requirements.txt"
-    startCommand: "cd api && gunicorn app:app"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "./start.sh"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
