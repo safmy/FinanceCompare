@@ -1,5 +1,5 @@
 import React from 'react';
-import { budgetTargets } from '../data/sampleData';
+import { budgetTargets } from '../data/fullTransactionData';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 
 const BudgetAnalysis = ({ transactions }) => {
