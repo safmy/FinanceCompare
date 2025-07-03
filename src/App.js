@@ -104,7 +104,10 @@ function App() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
+              <p className="text-xs text-gray-500 mt-1">v1.2.0 - Enhanced Categorization</p>
+            </div>
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}

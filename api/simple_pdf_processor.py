@@ -10,6 +10,11 @@ from datetime import datetime
 import json
 import PyPDF2
 from io import BytesIO
+try:
+    import pdfplumber
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
 
 class SimplePDFProcessor:
     def __init__(self):
@@ -39,16 +44,35 @@ class SimplePDFProcessor:
             # If PyPDF2 fails to extract text, try alternative method
             if len(all_text.strip()) < 100:
                 print("Minimal text extracted, trying alternative extraction...")
-                # Reset file pointer
-                pdf_file.seek(0)
-                # Try with different settings
-                try:
-                    pdf_reader = PyPDF2.PdfReader(pdf_file, strict=False)
-                    all_text = ""
-                    for page in pdf_reader.pages:
-                        all_text += page.extract_text() + "\n"
-                except:
-                    pass
+                
+                # Try pdfplumber if available
+                if HAS_PDFPLUMBER:
+                    try:
+                        print("Trying pdfplumber...")
+                        pdf_file.seek(0)
+                        with pdfplumber.open(pdf_file) as pdf:
+                            plumber_text = ""
+                            for page in pdf.pages:
+                                page_text = page.extract_text()
+                                if page_text:
+                                    plumber_text += page_text + "\n"
+                            
+                            if len(plumber_text) > len(all_text):
+                                all_text = plumber_text
+                                print(f"pdfplumber extracted {len(all_text)} characters")
+                    except Exception as e:
+                        print(f"pdfplumber failed: {e}")
+                
+                # Try PyPDF2 with different settings
+                if len(all_text.strip()) < 100:
+                    pdf_file.seek(0)
+                    try:
+                        pdf_reader = PyPDF2.PdfReader(pdf_file, strict=False)
+                        all_text = ""
+                        for page in pdf_reader.pages:
+                            all_text += page.extract_text() + "\n"
+                    except:
+                        pass
             
             return all_text if all_text else None
             
@@ -99,7 +123,8 @@ class SimplePDFProcessor:
             skip_patterns = [
                 'BALANCE BROUGHT', 'BALANCE CARRIED', 'STATEMENT', 'PAGE', 
                 'TOTAL SPENT', 'TRANSACTIONS', 'SHEET NUMBER', 'YOUR HSBC',
-                'PAYMENT TYPE', 'RECEIVED BY US', 'TRANSACTION DATE'
+                'PAYMENT TYPE', 'RECEIVED BY US', 'TRANSACTION DATE',
+                'PO BOX', 'GUILDFORD'  # Skip address lines
             ]
             if any(skip in line.upper() for skip in skip_patterns):
                 continue
