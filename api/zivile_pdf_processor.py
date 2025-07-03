@@ -92,10 +92,11 @@ class ZivilePDFProcessor:
                 transaction_data = self.extract_transaction_from_date_line(lines, i)
                 
                 if transaction_data:
-                    # Parse the extracted data
-                    trans = self.create_transaction(date_str, transaction_data, month_name, source)
-                    if trans:
-                        transactions.append(trans)
+                    # Process each transaction found on this date
+                    for trans_data in transaction_data['transactions']:
+                        trans = self.create_transaction(transaction_data['date_str'], trans_data, month_name, source)
+                        if trans:
+                            transactions.append(trans)
                     
                     # Skip the lines we've processed
                     i += transaction_data.get('lines_consumed', 1)
@@ -120,78 +121,123 @@ class ZivilePDFProcessor:
     
     def extract_transaction_from_date_line(self, lines, start_idx):
         """Extract complete transaction starting from a date line"""
-        result = {
-            'type_code': None,
-            'description': [],
-            'amount': None,
-            'balance': None,
-            'lines_consumed': 1
-        }
-        
         # First line has the date
         first_line = lines[start_idx].strip()
         
-        # Check if there's more on the same line after the date
-        date_pattern = r'^(\d{2}\s+\w{3}\s+\d{2})\s+'
-        remaining = re.sub(date_pattern, '', first_line).strip()
+        # Extract the date from the beginning
+        date_match = re.match(r'^(\d{2}\s+\w{3}\s+\d{2})', first_line)
+        if not date_match:
+            return None
+            
+        date_str = date_match.group(1)
         
-        if remaining:
-            # Parse what's left on the date line
-            parts = remaining.split()
-            if parts and parts[0] in ['VIS', 'DD', 'CR', 'ATM', 'BP', 'SO']:
-                result['type_code'] = parts[0]
-                if len(parts) > 1:
-                    result['description'].append(' '.join(parts[1:]))
+        # Look for complete transactions on the same line
+        # Pattern: date + type/description + amount + optional balance
+        # Each transaction should have its own amount
         
-        # Look at following lines for continuation
-        idx = start_idx + 1
+        transactions = []
+        idx = start_idx
+        current_date_block = []
+        
+        # Collect all lines that belong to this date
         while idx < len(lines):
             line = lines[idx].strip()
-            
             if not line:
                 idx += 1
                 continue
-            
-            # Check if this is a new date line (next transaction)
-            if re.match(r'^\d{2}\s+\w{3}\s+\d{2}', line):
+                
+            # If we hit a new date, stop
+            if idx > start_idx and re.match(r'^\d{2}\s+\w{3}\s+\d{2}', line):
                 break
-            
-            # Check for continuation markers
-            if line.startswith(')))'):
-                # Extract description after markers
-                desc = line[3:].strip()
-                if desc:
-                    result['description'].append(desc)
-            elif re.match(r'^[A-Z]{2,3}\s+', line):
-                # Line starting with type code
-                parts = line.split(None, 1)
-                if not result['type_code']:
-                    result['type_code'] = parts[0]
-                if len(parts) > 1:
-                    result['description'].append(parts[1])
-            elif re.match(r'^[\d,]+\.\d{2}$', line):
-                # Just an amount
-                if not result['amount']:
-                    result['amount'] = line
-                else:
-                    result['balance'] = line
-            elif re.match(r'^.+?\s+[\d,]+\.\d{2}$', line):
-                # Description with amount at end
-                match = re.match(r'^(.+?)\s+([\d,]+\.\d{2})$', line)
-                if match:
-                    result['description'].append(match.group(1).strip())
-                    if not result['amount']:
-                        result['amount'] = match.group(2)
-            else:
-                # Continuation of description
-                result['description'].append(line)
-            
+                
+            current_date_block.append(line)
             idx += 1
         
-        result['lines_consumed'] = idx - start_idx
+        # Now parse transactions from this date block
+        # Each transaction ends with an amount
+        current_trans = {
+            'type_code': None,
+            'description': [],
+            'amount': None
+        }
         
-        # Only return if we found an amount
-        return result if result['amount'] else None
+        for i, line in enumerate(current_date_block):
+            # Skip the date line itself
+            if i == 0:
+                remaining = re.sub(r'^\d{2}\s+\w{3}\s+\d{2}\s*', '', line).strip()
+                if not remaining:
+                    continue
+                line = remaining
+            
+            # Check if line starts with transaction type
+            type_match = re.match(r'^(VIS|DD|CR|ATM|BP|SO|TFR)\s+(.+)', line)
+            if type_match:
+                # If we have a pending transaction, save it
+                if current_trans['amount']:
+                    transactions.append(current_trans.copy())
+                    current_trans = {'type_code': None, 'description': [], 'amount': None}
+                
+                current_trans['type_code'] = type_match.group(1)
+                rest = type_match.group(2)
+                
+                # Check if amount is at end of line
+                amount_match = re.search(r'([\d,]+\.\d{2})(?:\s*D)?$', rest)
+                if amount_match:
+                    current_trans['description'].append(rest[:amount_match.start()].strip())
+                    current_trans['amount'] = amount_match.group(1)
+                    transactions.append(current_trans.copy())
+                    current_trans = {'type_code': None, 'description': [], 'amount': None}
+                else:
+                    current_trans['description'].append(rest)
+                    
+            elif line.startswith(')))'):
+                # Continuation marker - new transaction
+                if current_trans['amount']:
+                    transactions.append(current_trans.copy())
+                    current_trans = {'type_code': None, 'description': [], 'amount': None}
+                
+                rest = line[3:].strip()
+                # Check for amount at end
+                amount_match = re.search(r'([\d,]+\.\d{2})(?:\s*D)?$', rest)
+                if amount_match:
+                    current_trans['description'].append(rest[:amount_match.start()].strip())
+                    current_trans['amount'] = amount_match.group(1)
+                    transactions.append(current_trans.copy())
+                    current_trans = {'type_code': None, 'description': [], 'amount': None}
+                else:
+                    current_trans['description'].append(rest)
+                    
+            elif re.match(r'^[\d,]+\.\d{2}(?:\s*D)?$', line):
+                # Just an amount - complete current transaction
+                if current_trans['description']:
+                    current_trans['amount'] = re.match(r'^([\d,]+\.\d{2})', line).group(1)
+                    transactions.append(current_trans.copy())
+                    current_trans = {'type_code': None, 'description': [], 'amount': None}
+                    
+            elif re.search(r'([\d,]+\.\d{2})(?:\s*D)?$', line):
+                # Line ending with amount
+                amount_match = re.search(r'([\d,]+\.\d{2})(?:\s*D)?$', line)
+                current_trans['description'].append(line[:amount_match.start()].strip())
+                current_trans['amount'] = amount_match.group(1)
+                transactions.append(current_trans.copy())
+                current_trans = {'type_code': None, 'description': [], 'amount': None}
+            else:
+                # Description continuation
+                current_trans['description'].append(line)
+        
+        # Don't forget last transaction if incomplete
+        if current_trans['amount']:
+            transactions.append(current_trans.copy())
+        
+        # Convert to expected format
+        if transactions:
+            return {
+                'transactions': transactions,
+                'date_str': date_str,
+                'lines_consumed': idx - start_idx
+            }
+        else:
+            return None
     
     def create_transaction(self, date_str, data, month_name, source):
         """Create a transaction object from parsed data"""
