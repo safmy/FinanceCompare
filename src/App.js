@@ -106,7 +106,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.3.1 - Fixed Multi-Transaction Parsing</p>
+              <p className="text-xs text-gray-500 mt-1">v1.3.0 - Enhanced PDF Parsing</p>
             </div>
             <select
               value={dateRange}
