@@ -1,135 +1,162 @@
-# FinanceCompare
+# Personal Finance Dashboard
 
-A smart financial analysis web application that helps you understand your spending patterns by analyzing bank statements.
+A comprehensive React-based financial dashboard for analyzing your spending patterns from bank statements.
+
+**Live Demo**: [https://financecompare.netlify.app/](https://financecompare.netlify.app/)
 
 ## Features
 
-- 📤 **Multi-format Support**: Upload bank statements in CSV, PDF, XLS, or XLSX formats
-- 🤖 **AI-Powered Categorization**: Automatically categorizes transactions using OpenAI
-- 📊 **Visual Analytics**: Interactive charts showing spending by category, monthly trends, and top merchants
-- 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
-- 🔍 **Smart Parsing**: Intelligently extracts transaction data from various bank formats
-- 📈 **Comprehensive Reports**: View spending patterns over weeks, months, or years
+- **Interactive Category Breakdown**: Click on any category to see detailed transactions
+- **Monthly Trends**: Visualize spending patterns over time
+- **Budget Analysis**: Track spending against budget targets
+- **CSV Upload**: Import your actual bank statements
+- **Responsive Design**: Works on desktop and mobile
+- **Date Range Filtering**: View all time or specific periods
 
-## Tech Stack
+## Setup Instructions
 
-- **Frontend**: React, TypeScript, Vite, Chart.js
-- **Backend**: Python, Flask, OpenAI API
-- **Deployment**: Netlify (frontend), Render (backend)
+### 1. Install Dependencies
 
-## Getting Started
+```bash
+npm install
+```
 
-### Prerequisites
+### 2. Add Your Transaction Data
 
-- Node.js 18+
-- Python 3.11+
-- OpenAI API key
+#### Option A: Upload CSV File
+1. Export your bank statements as CSV
+2. Use the "Upload" tab in the dashboard
+3. Follow the format: `Date,Description,Amount,Category`
 
-### Local Development
+#### Option B: Manually Edit Sample Data
+Edit `src/data/sampleData.js` with your actual transactions:
 
-1. Clone the repository:
+```javascript
+export const transactions = [
+  { 
+    id: 1, 
+    date: '2025-01-05', 
+    description: 'Tesco Express', 
+    amount: -45.67, 
+    category: 'Groceries', 
+    month: 'January' 
+  },
+  // Add more transactions...
+];
+```
+
+### 3. Customize Budget Targets
+
+Edit budget targets in `src/data/sampleData.js`:
+
+```javascript
+export const budgetTargets = {
+  'Transport': 300,
+  'Groceries': 400,
+  'Restaurants': 200,
+  // Add more categories...
+};
+```
+
+### 4. Run Locally
+
+```bash
+npm start
+```
+
+Visit `http://localhost:3000` to view your dashboard.
+
+## Deploy to Netlify
+
+### Method 1: Drag & Drop
+
+1. Build the project:
    ```bash
-   git clone https://github.com/safmy/FinanceCompare.git
-   cd FinanceCompare
+   npm run build
    ```
 
-2. Install frontend dependencies:
-   ```bash
-   npm install
-   ```
+2. Go to [Netlify Drop](https://app.netlify.com/drop)
 
-3. Set up Python environment for the API:
-   ```bash
-   cd api
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+3. Drag the `build` folder to the upload area
 
-4. Create a `.env` file in the root directory:
-   ```bash
-   cp .env.example .env
-   ```
-   Add your OpenAI API key to the `.env` file.
+### Method 2: Git Integration
 
-5. Start the backend API:
-   ```bash
-   cd api
-   python app.py
-   ```
-
-6. In a new terminal, start the frontend:
-   ```bash
-   npm run dev
-   ```
-
-7. Open http://localhost:3000 in your browser
-
-## Deployment
-
-### Deploy to Netlify (Frontend)
-
-1. Fork this repository to your GitHub account
+1. Push this project to GitHub/GitLab/Bitbucket
 
 2. Go to [Netlify](https://app.netlify.com)
 
-3. Click "Add new site" > "Import an existing project"
+3. Click "New site from Git"
 
-4. Connect your GitHub account and select the FinanceCompare repository
+4. Connect your repository
 
 5. Configure build settings:
    - Build command: `npm run build`
-   - Publish directory: `dist`
-   - Add environment variable: `VITE_API_URL` = `https://your-render-api-url.onrender.com`
+   - Publish directory: `build`
 
 6. Click "Deploy site"
 
-### Deploy to Render (Backend API)
+### Method 3: Netlify CLI
 
-1. Go to [Render](https://render.com)
+1. Install Netlify CLI:
+   ```bash
+   npm install -g netlify-cli
+   ```
 
-2. Click "New +" > "Web Service"
+2. Build and deploy:
+   ```bash
+   npm run build
+   netlify deploy --prod --dir=build
+   ```
 
-3. Connect your GitHub account and select the FinanceCompare repository
+## Converting PDF Statements to CSV
 
-4. Configure the service:
-   - Name: `finance-compare-api`
-   - Environment: `Python`
-   - Build Command: `cd api && pip install -r requirements.txt`
-   - Start Command: `cd api && gunicorn app:app`
+Since your bank statements are in PDF format, you'll need to convert them to CSV:
 
-5. Add environment variables:
-   - `OPENAI_API_KEY`: Your OpenAI API key
-   - `PYTHON_VERSION`: `3.11`
+### Manual Method:
+1. Copy transaction data from PDF
+2. Paste into Excel/Google Sheets
+3. Format columns: Date, Description, Amount, Category
+4. Export as CSV
 
-6. Click "Create Web Service"
+### Automated Method:
+Use a PDF to CSV converter tool or service
 
-7. Once deployed, update your Netlify environment variable `VITE_API_URL` with the Render URL
+## Data Categories
 
-## Usage
+The dashboard automatically categorizes transactions based on keywords:
+- **Groceries**: Tesco, Sainsbury's, ASDA, Waitrose
+- **Transport**: TfL, Uber, Rail
+- **Fast Food**: McDonald's, KFC, Burger King
+- **Coffee Shops**: Costa, Starbucks, Pret
+- **Food Delivery**: Deliveroo, Just Eat, Uber Eats
+- **Fuel**: Shell, BP, Esso, Petrol
+- **Subscriptions**: Netflix, Spotify, Amazon Prime
+- **Restaurants**: Restaurant names, Wagamama, Nando's
+- **Other**: Everything else
 
-1. **Upload Bank Statements**: Drag and drop or click to upload your bank statement files
-2. **Automatic Processing**: The app will parse and categorize your transactions
-3. **View Analytics**: Explore your spending patterns through interactive charts
-4. **Filter and Sort**: Use the transaction list to filter by category and sort by date or amount
+You can modify the categorization logic in `src/components/DataUpload.js`.
 
-## Supported Bank Formats
+## Environment Variables (Optional)
 
-The app automatically detects and parses common CSV formats from major banks. For best results:
-- Ensure CSV files have headers
-- PDF statements should be text-based (not scanned images)
-- Excel files should have transaction data in the first sheet
+Create a `.env` file for any API keys or configuration:
 
-## Privacy & Security
+```
+REACT_APP_API_KEY=your-api-key
+```
 
-- All processing happens in real-time - we don't store your financial data
-- Bank statements are processed and immediately discarded
-- Only aggregated analytics are displayed
-- API calls to OpenAI contain only transaction descriptions, not personal information
+## Troubleshooting
 
-## Contributing
+1. **Blank Page**: Check console for errors, ensure all dependencies are installed
+2. **CSV Upload Fails**: Verify CSV format matches the expected structure
+3. **Missing Categories**: Add new category colors in `src/data/sampleData.js`
 
-Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+## Future Enhancements
+
+- Export reports as PDF
+- Set spending alerts
+- Connect to bank APIs for automatic updates
+- Add savings goals tracking
+- Include investment tracking
 
 ## License
 
