@@ -175,7 +175,7 @@ export const transactions = [
         js_content += f"""  {{
     id: {trans['id']},
     date: '{trans['date']}',
-    description: '{trans['description']}',
+    description: '{trans['description'].replace("'", "\\'")}',
     amount: {trans['amount']},
     category: '{trans['category']}',
     month: '{trans['month']}'
