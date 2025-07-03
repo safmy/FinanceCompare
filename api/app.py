@@ -94,32 +94,33 @@ def parse_pdf():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/parse-excel', methods=['POST'])
-def parse_excel():
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
-        
-        # Read Excel file
-        df = pd.read_excel(file)
-        
-        # Convert to transactions
-        transactions = []
-        for index, row in df.iterrows():
-            transaction = parse_excel_row(row, index)
-            transactions.append(transaction)
-        
-        return jsonify({'transactions': transactions})
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Excel endpoint commented out - pandas removed
+# @app.route('/api/parse-excel', methods=['POST'])
+# def parse_excel():
+#     try:
+#         if 'file' not in request.files:
+#             return jsonify({'error': 'No file provided'}), 400
+#         
+#         file = request.files['file']
+#         if file.filename == '':
+#             return jsonify({'error': 'No file selected'}), 400
+#         
+#         if not allowed_file(file.filename):
+#             return jsonify({'error': 'Invalid file type'}), 400
+#         
+#         # Read Excel file
+#         df = pd.read_excel(file)
+#         
+#         # Convert to transactions
+#         transactions = []
+#         for index, row in df.iterrows():
+#             transaction = parse_excel_row(row, index)
+#             transactions.append(transaction)
+#         
+#         return jsonify({'transactions': transactions})
+#         
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/parse-pdf-vision', methods=['POST'])
 def parse_pdf_vision():
@@ -323,8 +324,10 @@ def parse_pdf_text_with_ai(text: str) -> List[Dict[str, Any]]:
         print(f"Error parsing PDF with AI: {e}")
         return []
 
+"""
+# Excel row parser - commented out since pandas was removed
 def parse_excel_row(row: pd.Series, index: int) -> Dict[str, Any]:
-    """Parse a row from Excel/CSV file"""
+    # Parse a row from Excel/CSV file
     transaction = {
         'id': f'excel-{datetime.now().timestamp()}-{index}',
         'date': None,
@@ -381,6 +384,7 @@ def parse_excel_row(row: pd.Series, index: int) -> Dict[str, Any]:
                 pass
     
     return transaction
+"""
 
 def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Use OpenAI to categorize transactions"""
