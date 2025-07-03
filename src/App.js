@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import CategoryCard from './components/CategoryCard';
-import TransactionTable from './components/TransactionTable';
+import InteractiveTransactionTable from './components/InteractiveTransactionTable';
 import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
 import DataUpload from './components/DataUpload';
@@ -235,9 +235,15 @@ function App() {
 
       {/* Transaction Modal */}
       {selectedCategory && (
-        <TransactionTable
+        <InteractiveTransactionTable
           transactions={spendingByCategory[selectedCategory].transactions}
           onClose={() => setSelectedCategory(null)}
+          onUpdateTransaction={(id, newCategory) => {
+            // Update the transaction in the main state
+            setTransactions(prev => prev.map(t => 
+              t.id === id ? { ...t, category: newCategory } : t
+            ));
+          }}
         />
       )}
     </div>

@@ -265,6 +265,43 @@ def categorize_transactions():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/update-category', methods=['POST'])
+def update_transaction_category():
+    """Update a single transaction's category"""
+    try:
+        data = request.get_json()
+        transaction_id = data.get('transaction_id')
+        new_category = data.get('category')
+        
+        # In a real app, this would update a database
+        # For now, just return success
+        return jsonify({
+            'success': True,
+            'transaction_id': transaction_id,
+            'category': new_category
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/merge-categories', methods=['POST'])
+def merge_categories():
+    """Merge two categories into one"""
+    try:
+        data = request.get_json()
+        source_category = data.get('source')
+        target_category = data.get('target')
+        
+        # In a real app, this would update all transactions with source category
+        # For now, just return success
+        return jsonify({
+            'success': True,
+            'merged': f"{source_category} -> {target_category}"
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 def parse_pdf_text_with_ai(text: str) -> List[Dict[str, Any]]:
     """Use OpenAI to extract transactions from PDF text"""
     try:
@@ -395,29 +432,40 @@ def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str,
     try:
         # Prepare transaction descriptions
         transaction_list = "\n".join([
-            f"{i+1}. {t['description']} (${t['amount']})"
+            f"{i+1}. {t['description']} (£{abs(t['amount']):.2f}) {'CR' if t['amount'] > 0 else 'DR'}"
             for i, t in enumerate(transactions[:50])  # Limit to 50 transactions
         ])
         
         prompt = f"""
-        Categorize the following financial transactions into these categories:
-        - Food & Dining
-        - Shopping
-        - Transportation
-        - Bills & Utilities
-        - Entertainment
-        - Healthcare
-        - Education
-        - Travel
-        - Personal Care
-        - Home & Garden
-        - Gifts & Donations
-        - Financial
-        - Business
-        - Income (for credits/deposits)
-        - Other
+        Categorize the following UK bank transactions intelligently. Be specific and accurate based on the merchant names:
+
+        Categories to use:
+        - Income (salaries, payments received, transfers in - PAYSTREAM, CR PAYMENTS)
+        - Rent (monthly rent payments)
+        - Bills & Utilities (electricity, gas, water, internet, phone - EDF ENERGY, BT GROUP)
+        - Groceries (supermarkets - TESCO, SAINSBURY'S, ASDA, CO-OP, BUDGENS)
+        - Restaurants (sit-down dining - NANDO'S, WAGAMAMA, restaurants)
+        - Fast Food (quick service - MCDONALD'S, KFC, SUBWAY, GREGGS)
+        - Food Delivery (DELIVEROO, JUST EAT, UBER EATS)
+        - Coffee Shops (CAFFE NERO, STARBUCKS, COSTA)
+        - Transport (TFL, trains, buses, UBER, taxis)
+        - Fuel (petrol stations - BP, SHELL, ESSO)
+        - Parking (parking fees, RINGGO, NCP)
+        - Shopping (retail stores, online shopping - AMAZON, IKEA, clothing)
+        - Subscriptions (recurring services - NETFLIX, SPOTIFY, gym memberships like EVERYONE ACTIVE)
+        - Financial Services (PAYPAL, bank fees, ATM)
+        - Entertainment (cinema, gaming, streaming)
+        - Healthcare (pharmacy, medical)
+        - Personal Care (barber, beauty)
+        - Other (anything else)
         
-        Also extract the merchant name from each description.
+        Important notes:
+        - PAYSTREAM/CRPAYSTREAM = Income (salary)
+        - DDPAYPAL = Financial Services (PayPal direct debit)
+        - DDEVERYONE ACTIVE = Subscriptions (gym membership)
+        - PAYMENT THANK YOU = Income
+        - Look for DD prefix = Direct Debit
+        - Look for CR suffix = Credit (income)
         
         Transactions:
         {transaction_list}
@@ -426,15 +474,15 @@ def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str,
         [
             {{
                 "category": "Category Name",
-                "merchant": "Merchant Name"
+                "merchant": "Clean Merchant Name"
             }}
         ]
         """
         
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4-1106-preview",  # Using GPT-4 for better categorization
             messages=[
-                {"role": "system", "content": "You are a financial categorization assistant."},
+                {"role": "system", "content": "You are an expert financial categorization assistant for UK bank statements."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0,

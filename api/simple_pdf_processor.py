@@ -91,8 +91,13 @@ class SimplePDFProcessor:
             if not line:
                 continue
             
-            # Skip headers and footers
-            if any(skip in line.upper() for skip in ['BALANCE BROUGHT', 'BALANCE CARRIED', 'STATEMENT', 'PAGE', 'TOTAL SPENT', 'TRANSACTIONS', 'SHEET NUMBER']):
+            # Skip headers, footers, and non-transaction entries
+            skip_patterns = [
+                'BALANCE BROUGHT', 'BALANCE CARRIED', 'STATEMENT', 'PAGE', 
+                'TOTAL SPENT', 'TRANSACTIONS', 'SHEET NUMBER', 'YOUR HSBC',
+                'PAYMENT TYPE', 'RECEIVED BY US', 'TRANSACTION DATE'
+            ]
+            if any(skip in line.upper() for skip in skip_patterns):
                 continue
             
             matched = False
@@ -169,11 +174,17 @@ class SimplePDFProcessor:
                         if len(desc_parts) > 0:
                             description = desc_parts[0]
                         
+                        category = self.categorize_transaction(description)
+                        
+                        # Skip balance entries
+                        if category is None:
+                            continue
+                            
                         transaction = {
                             'date': formatted_date,
                             'description': description[:100],  # Limit length
                             'amount': amount,
-                            'category': self.categorize_transaction(description),
+                            'category': category,
                             'month': month_name,
                             'source': source
                         }
@@ -199,21 +210,30 @@ class SimplePDFProcessor:
         """Categorize transaction based on merchant name"""
         desc_upper = description.upper()
         
-        # Category mappings based on your screenshots
+        # Skip balance entries
+        if any(skip in desc_upper for skip in ['BALANCE', 'BROUGHT FORWARD', 'CARRIED FORWARD']):
+            return None  # Will be filtered out
+        
+        # More comprehensive category mappings
         categories = {
+            'Income': ['PAYSTREAM', 'SALARY', 'WAGE', 'PAYMENT RECEIVED', 'TRANSFER IN'],
             'Coffee Shops': ['CAFFE NERO', 'STARBUCKS', 'COSTA', 'PRET A MANGER', 'COFFEE'],
-            'Transport': ['TFL', 'RAIL', 'UBER', 'TAXI', 'TRANSPORT', 'TRAIN'],
-            'Groceries': ['TESCO', 'SAINSBURY', 'ASDA', 'WAITROSE', 'CO-OP', 'M&S FOOD', 'LIDL', 'ALDI'],
-            'Fast Food': ['MCDONALD', 'KFC', 'BURGER', 'SUBWAY', 'GREGGS'],
-            'Food Delivery': ['DELIVEROO', 'JUST EAT', 'UBER EAT', 'FOODHUB'],
-            'Restaurants': ['RESTAURANT', 'NANDO', 'WAGAMAMA', 'PIZZA', 'DINING', 'GRILL'],
-            'Shopping': ['AMAZON', 'EBAY', 'ASOS', 'NEXT', 'PRIMARK', 'ZARA'],
-            'Entertainment': ['CINEMA', 'NETFLIX', 'SPOTIFY', 'DISNEY'],
-            'Parking': ['PARKING', 'NCP', 'CAR PARK'],
-            'Fuel': ['SHELL', 'BP', 'ESSO', 'PETROL', 'FUEL'],
-            'Bills': ['COUNCIL TAX', 'ELECTRIC', 'GAS', 'WATER', 'INSURANCE'],
+            'Transport': ['TFL', 'RAIL', 'UBER', 'TAXI', 'TRANSPORT', 'TRAIN', 'SADKOVSKYTE'],
+            'Groceries': ['TESCO', 'SAINSBURY', 'ASDA', 'WAITROSE', 'CO-OP', 'M&S FOOD', 'LIDL', 'ALDI', 'BUDGENS'],
+            'Fast Food': ['MCDONALD', 'KFC', 'BURGER', 'SUBWAY', 'GREGGS', 'THUNDERBIRD FRIED'],
+            'Food Delivery': ['DELIVEROO', 'JUST EAT', 'UBER EAT', 'FOODHUB', 'DOMINO'],
+            'Restaurants': ['RESTAURANT', 'NANDO', 'WAGAMAMA', 'PIZZA', 'DINING', 'GRILL', 'DONER', 'DOLCE VITA', 'ITSU'],
+            'Shopping': ['AMAZON', 'EBAY', 'ASOS', 'NEXT', 'PRIMARK', 'ZARA', 'IKEA', 'CLARKS'],
+            'Entertainment': ['CINEMA', 'NETFLIX', 'SPOTIFY', 'DISNEY', 'PRIME VIDEO'],
+            'Parking': ['PARKING', 'NCP', 'CAR PARK', 'RINGGO', 'SABA PARK'],
+            'Fuel': ['SHELL', 'BP', 'ESSO', 'PETROL', 'FUEL', 'BP BESSBOROUGH'],
+            'Bills & Utilities': ['COUNCIL TAX', 'ELECTRIC', 'GAS', 'WATER', 'INSURANCE', 'EDF ENERGY', 'BT GROUP'],
             'Rent': ['RENT'],
-            'Subscriptions': ['SUBSCRIPTION', 'MEMBERSHIP'],
+            'Subscriptions': ['SUBSCRIPTION', 'MEMBERSHIP', 'OPENAI', 'CLAUDE', 'ANTHROPIC', 'EVERYONE ACTIVE', 'GOOGLE CLOUD'],
+            'Financial': ['PAYPAL', 'BANK TRANSFER', 'ATM', 'CASH'],
+            'Healthcare': ['PHARMACY', 'DOCTOR', 'HOSPITAL', 'MEDICAL'],
+            'Personal Care': ['BARBER', 'HAIR', 'BEAUTY', 'SPA'],
+            'Charity': ['DONATION', 'CHARITY'],
         }
         
         for category, keywords in categories.items():
@@ -223,7 +243,14 @@ class SimplePDFProcessor:
         
         # Special cases
         if 'PAYMENT' in desc_upper and 'THANK YOU' in desc_upper:
-            return 'Payments'
+            return 'Income'
+        if 'CR' in desc_upper and 'PAYSTREAM' in desc_upper:
+            return 'Income'
+        if 'DD' in desc_upper:  # Direct Debit
+            if 'PAYPAL' in desc_upper:
+                return 'Financial'
+            elif 'EVERYONE ACTIVE' in desc_upper:
+                return 'Subscriptions'
         
         return 'Other'
     
