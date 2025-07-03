@@ -46,14 +46,14 @@ class SimplePDFProcessor:
         lines = text.split('\n')
         
         # Pattern for your bank statement format
-        # Example: "11 Dec 24  10 Dec 24  ))) CAFFE NERO WINDSOR PEA WINDSOR  3.60"
+        # PyPDF2 extracts dates without spaces: "11 Dec2409 Dec24" instead of "11 Dec 24  09 Dec 24"
         patterns = [
-            # With ))) markers
-            r'(\d{1,2}\s+\w{3}\s+\d{2})\s+\d{1,2}\s+\w{3}\s+\d{2}\s+\)+\s*([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?',
-            # Without ))) markers
-            r'(\d{1,2}\s+\w{3}\s+\d{2})\s+\d{1,2}\s+\w{3}\s+\d{2}\s+([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?',
-            # Alternative format with amount at different position
-            r'(\d{1,2}\s+\w{3}\s+\d{2})\s+(.+?)\s+£?([\d,]+\.\d{2})(?:\s*CR)?$'
+            # With ))) markers - dates concatenated
+            r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+\)+\s*([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?',
+            # Without ))) markers - dates concatenated
+            r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?',
+            # Alternative pattern for different formats
+            r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+(.+?)\s+([\d,]+\.\d{2})(?:\s*CR)?'
         ]
         
         transaction_count = 0
@@ -72,11 +72,15 @@ class SimplePDFProcessor:
                 match = re.search(pattern, line)
                 if match:
                     try:
-                        date_str = match.group(1)  # e.g., "11 Dec 24"
-                        description = match.group(2).strip()
-                        amount_str = match.group(3)
+                        # For the new patterns, we have: date_part, year1, year2, description, amount
+                        date_part = match.group(1)  # e.g., "11 Dec"
+                        year_str = match.group(2)   # e.g., "24" (from Dec24)
+                        # match.group(3) is the second year which we don't need
+                        description = match.group(4).strip()
+                        amount_str = match.group(5)
                         
-                        # Parse date
+                        # Parse date - combine date_part and year
+                        date_str = f"{date_part} {year_str}"  # "11 Dec 24"
                         try:
                             date_obj = datetime.strptime(date_str, "%d %b %y")
                             formatted_date = date_obj.strftime("%Y-%m-%d")
