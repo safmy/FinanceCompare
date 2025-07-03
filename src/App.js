@@ -5,7 +5,7 @@ import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
 import DataUpload from './components/DataUpload';
 import PDFUpload from './components/PDFUpload';
-import { transactions as sampleTransactions, categoryColors } from './data/fullTransactionData';
+import { transactions as sampleTransactions, categoryColors } from './data/currentAccountData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Calendar, TrendingUp, DollarSign, Upload } from 'lucide-react';
 
