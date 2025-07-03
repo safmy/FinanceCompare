@@ -12,16 +12,20 @@ from datetime import datetime
 import tempfile
 import base64
 try:
-    # Try enhanced processor first
-    from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
-    print("Using enhanced PDF processor")
-except ImportError:
+    # Import all available processors
+    from enhanced_pdf_processor import EnhancedPDFProcessor
+    from zivile_pdf_processor import ZivilePDFProcessor
+    from simple_pdf_processor import SimplePDFProcessor
+    
+    # Default to enhanced processor
+    PDFProcessor = EnhancedPDFProcessor
+    print("PDF processors loaded successfully")
+except ImportError as e:
+    print(f"Error importing PDF processors: {e}")
     try:
-        # Fallback to simple processor
         from simple_pdf_processor import SimplePDFProcessor as PDFProcessor
         print("Using simple PDF processor (PyPDF2)")
-    except ImportError as e:
-        print(f"Error importing PDF processors: {e}")
+    except:
         PDFProcessor = None
 
 app = Flask(__name__)
@@ -195,8 +199,22 @@ def parse_pdfs_batch():
         
         if PDFProcessor is None:
             return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
+        
+        # Detect which processor to use based on filename patterns
+        processor = None
+        if pdf_data and 'filename' in pdf_data[0]:
+            first_filename = pdf_data[0]['filename'].lower()
+            if 'zivile' in first_filename or any('zivile' in pd.get('filename', '').lower() for pd in pdf_data):
+                try:
+                    processor = ZivilePDFProcessor()
+                    print("Using Zivile PDF processor for specialized format")
+                except:
+                    processor = PDFProcessor()
+            else:
+                processor = PDFProcessor()
+        else:
+            processor = PDFProcessor()
             
-        processor = PDFProcessor()
         all_transactions = processor.process_pdf_batch(pdf_data)
         print(f"Found {len(all_transactions)} total transactions")
         
@@ -485,14 +503,19 @@ def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str,
             
             Important notes:
             - PAYSTREAM/CRPAYSTREAM = Income (salary)
+            - CRHMRC CHILD BENEFIT = Income (government benefit)
+            - CRVICTORAS GIFT = Income (gift/transfer)
             - DDPAYPAL = Financial Services (PayPal direct debit)
+            - DDHSBC PLC LOANS = Financial Services (loan payment)
+            - DDEE LIMITED / DDEE = Bills & Utilities (likely energy company)
             - DDEVERYONE ACTIVE = Subscriptions (gym membership)
             - PAYMENT THANK YOU = Income
-            - Look for DD prefix = Direct Debit
-            - Look for CR suffix = Credit (income)
+            - Look for DD prefix = Direct Debit (usually bills or subscriptions)
+            - Look for CR prefix = Credit (income)
             - ATM = Financial Services (cash withdrawal)
             - HSBC/bank names = Financial Services
-            - CR at start or CRPAYSTREAM = Income
+            - VIS = Shopping (Visa card transaction)
+            - WEEKLY SUBSISTENCE = Income (allowance/subsistence)
             
             Transactions:
             {transaction_list}
@@ -507,7 +530,7 @@ def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str,
             """
             
             response = openai.ChatCompletion.create(
-                model="gpt-4-1106-preview",  # Using GPT-4 for better categorization
+                model="gpt-4o",  # Using GPT-4o for improved categorization
                 messages=[
                     {"role": "system", "content": "You are an expert financial categorization assistant for UK bank statements."},
                     {"role": "user", "content": prompt}

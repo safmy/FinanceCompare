@@ -110,30 +110,41 @@ class EnhancedPDFProcessor:
         transactions = []
         lines = text.split('\n')
         
-        # Enhanced patterns for HSBC current account
+        # Enhanced patterns for various bank statement formats
         patterns = [
-            # Table row format: Date Type Description Amount Balance
-            (r'(\d{2}\s+\w{3}\s+\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*([D]?)$', 'table_with_balance'),
-            # Without balance
-            (r'(\d{2}\s+\w{3}\s+\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*([D]?)$', 'table_no_balance'),
-            # Compact format
+            # Multi-line transaction patterns (date on one line, rest on next)
+            (r'^(\d{2}\s+\w{3}\s+\d{2})$', 'date_only'),
+            (r'^\)\)\)\s*(.+?)\s+([\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})?(?:\s*[DC])?$', 'continuation_with_markers'),
+            (r'^([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})?(?:\s*[DC])?$', 'type_first_pattern'),
+            
+            # Single line patterns
+            (r'(\d{2}\s+\w{3}\s+\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*([DC]?)$', 'table_with_balance'),
+            (r'(\d{2}\s+\w{3}\s+\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*([DC]?)$', 'table_no_balance'),
             (r'(\d{2}[A-Za-z]{3}\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})', 'compact'),
-            # Standard formats
             (r'(\d{1,2}\s+\w{3}\s+\d{2})\s+(.+?)\s+([\d,]+\.\d{2})', 'standard'),
         ]
         
-        for line in lines:
-            line = line.strip()
+        # State tracking for multi-line transactions
+        current_date = None
+        current_type = None
+        current_description = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             if not line:
+                i += 1
                 continue
             
             # Skip known non-transaction lines
             skip_patterns = [
-                'BALANCE', 'STATEMENT', 'PAGE', 'SHEET', 'TOTAL',
+                'YOUR BANK ACCOUNT', 'STATEMENT', 'PAGE', 'SHEET', 'TOTAL',
                 'YOUR HSBC', 'PAYMENT TYPE', 'DATE', 'DESCRIPTION',
-                'PO BOX', 'GUILDFORD', 'ACCOUNT SUMMARY'
+                'PO BOX', 'GUILDFORD', 'ACCOUNT SUMMARY', 'PROSPECT PLACE',
+                'DARLINGTON', 'DURHAM', 'BALANCE BROUGHT', 'BALANCE CARRIED'
             ]
             if any(skip in line.upper() for skip in skip_patterns):
+                i += 1
                 continue
             
             for pattern_regex, pattern_type in patterns:
