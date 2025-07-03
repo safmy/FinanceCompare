@@ -128,7 +128,8 @@ class PDFProcessor:
             'Parking': ['PARKING', 'NCP', 'RINGO', 'PARKINGPERMIT', 'CAR PARK'],
             'Restaurants': ['RESTAURANT', 'WAGAMAMA', 'NANDO', 'ZIZZI', 'PREZZO', 'GRILL', 'KITCHEN', 'DINING', 'BISTRO'],
             'Shopping': ['AMAZON', 'EBAY', 'ASOS', 'NEXT', 'H&M', 'ZARA', 'PRIMARK', 'JOHN LEWIS', 'ARGOS', 'BOOTS'],
-            'Bills': ['COUNCIL TAX', 'ELECTRIC', 'GAS', 'WATER', 'BROADBAND', 'INSURANCE', 'RENT'],
+            'Rent': ['RENT'],
+            'Bills': ['COUNCIL TAX', 'ELECTRIC', 'GAS', 'WATER', 'BROADBAND', 'INSURANCE'],
             'Entertainment': ['CINEMA', 'ODEON', 'VUE', 'THEATRE', 'CONCERT', 'TICKET'],
             'Fitness': ['GYM', 'FITNESS', 'SPORT', 'PURE GYM', 'VIRGIN ACTIVE'],
         }

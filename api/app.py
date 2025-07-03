@@ -172,7 +172,8 @@ def generate_js_export(transactions):
         js_content += f"  {{\n"
         js_content += f"    id: {trans['id']},\n"
         js_content += f"    date: '{trans['date']}',\n"
-        js_content += f"    description: '{trans['description'].replace('\"', '\\\"')}',\n"
+        desc = trans['description'].replace('"', '\\"').replace("'", "\\'")
+        js_content += f"    description: '{desc}',\n"
         js_content += f"    amount: {trans['amount']},\n"
         js_content += f"    category: '{trans['category']}',\n"
         js_content += f"    month: '{trans['month']}'\n"

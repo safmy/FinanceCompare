@@ -62,9 +62,11 @@ merchants = {
         ('Amazon Prime', (8.99, 8.99)),
         ('Disney+', (7.99, 7.99))
     ],
+    'Rent': [
+        ('Rent', (1200, 1200))
+    ],
     'Other': [
         ('Council Tax', (150, 150)),
-        ('Rent', (1200, 1200)),
         ('Electric Bill', (80, 120)),
         ('Water Bill', (35, 45)),
         ('Internet', (45, 45)),
@@ -103,7 +105,7 @@ def generate_transactions():
             'date': f'{year_month}-05',
             'description': 'Rent',
             'amount': -1200.00,
-            'category': 'Other',
+            'category': 'Rent',
             'month': month_name
         })
         transaction_id += 1
@@ -122,6 +124,7 @@ def generate_transactions():
                 'Food Delivery': 8,
                 'Shopping': 7,
                 'Subscriptions': 2,
+                'Rent': 0,  # Already added as fixed monthly expense
                 'Other': 3
             }
             
@@ -199,6 +202,7 @@ export const categoryColors = {
   'Healthcare': '#06B6D4',
   'Fitness': '#84CC16',
   'Phone': '#A855F7',
+  'Rent': '#DC2626',
   'Other': '#6B7280'
 };"""
     
