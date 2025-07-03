@@ -116,12 +116,12 @@ def categorize_transaction(description):
 def main():
     # PDF files and their corresponding months
     pdf_files = [
-        ('2025-01-09_Statement.pdf', 'January'),
-        ('2025-02-08_Statement.pdf', 'February'),
-        ('2025-03-08_Statement.pdf', 'March'),
-        ('2025-04-09_Statement.pdf', 'April'),
-        ('2025-05-09_Statement.pdf', 'May'),
-        ('2025-06-09_Statement.pdf', 'June'),
+        ('../current account/2025-01-07_Statement.pdf', 'January'),
+        ('../current account/2025-02-07_Statement.pdf', 'February'),
+        ('../current account/2025-03-07_Statement.pdf', 'March'),
+        ('../current account/2025-04-07_Statement.pdf', 'April'),
+        ('../current account/2025-05-07_Statement.pdf', 'May'),
+        ('../current account/2025-06-07_Statement.pdf', 'June'),
     ]
     
     all_transactions = []
