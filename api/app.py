@@ -169,35 +169,59 @@ def parse_pdf_vision():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/parse-pdfs-batch', methods=['POST'])
+@app.route('/api/parse-pdfs-batch', methods=['POST', 'OPTIONS'])
 def parse_pdfs_batch():
     """Parse multiple PDFs at once"""
+    # Handle preflight request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        return response
+        
     try:
+        print("\n" + "="*80)
+        print("STARTING PDF BATCH PROCESSING")
+        print("="*80)
+        
         files = request.files.getlist('files')
         if not files:
+            print("ERROR: No files provided in request")
             return jsonify({'error': 'No files provided'}), 400
+        
+        print(f"Received {len(files)} files to process")
         
         # Get months from request
         months = request.form.getlist('months')
+        print(f"Months provided: {months}")
         
         pdf_data = []
         for i, file in enumerate(files):
             if file and allowed_file(file.filename):
+                print(f"\nFile {i+1}: {file.filename}")
                 pdf_content = file.read()
+                print(f"  - Size: {len(pdf_content)} bytes")
+                
                 pdf_base64 = base64.b64encode(pdf_content).decode()
                 
                 month = months[i] if i < len(months) else f'Month {i+1}'
+                source = 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
+                print(f"  - Month: {month}")
+                print(f"  - Source: {source}")
+                
                 pdf_data.append({
                     'content': pdf_base64,
                     'month': month,
                     'filename': file.filename,
-                    'source': 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
+                    'source': source
                 })
         
         # Process all PDFs
-        print(f"Processing {len(pdf_data)} PDFs")
+        print(f"\nProcessing {len(pdf_data)} PDFs...")
         
         if PDFProcessor is None:
+            print("ERROR: PDF processor not available")
             return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
         
         # Detect which processor to use based on filename patterns
@@ -208,38 +232,68 @@ def parse_pdfs_batch():
                 try:
                     processor = ZivilePDFProcessor()
                     print("Using Zivile PDF processor for specialized format")
-                except:
+                except Exception as e:
+                    print(f"Failed to load ZivilePDFProcessor: {e}")
                     processor = PDFProcessor()
+                    print("Falling back to standard PDF processor")
             else:
                 processor = PDFProcessor()
+                print("Using standard PDF processor")
         else:
             processor = PDFProcessor()
-            
-        all_transactions = processor.process_pdf_batch(pdf_data)
-        print(f"Found {len(all_transactions)} total transactions")
+            print("Using default PDF processor")
+        
+        try:
+            all_transactions = processor.process_pdf_batch(pdf_data)
+            print(f"\nExtraction complete: Found {len(all_transactions)} total transactions")
+        except Exception as e:
+            print(f"ERROR during PDF processing: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f'PDF processing failed: {str(e)}'}), 500
         
         # Auto-categorize transactions using GPT-4
         if all_transactions:
-            print(f"Auto-categorizing {len(all_transactions)} transactions...")
-            categorized = categorize_with_openai(all_transactions)
-            
-            # Apply categories back to transactions
-            for i, trans in enumerate(all_transactions):
-                if i < len(categorized):
-                    # Update category if it's currently "Other" or uncategorized
-                    if trans.get('category', 'Other') == 'Other':
-                        trans['category'] = categorized[i].get('category', 'Other')
+            print(f"\nAuto-categorizing {len(all_transactions)} transactions...")
+            try:
+                categorized = categorize_with_openai(all_transactions)
+                print(f"Categorization complete: {len(categorized)} items processed")
+                
+                # Apply categories back to transactions
+                updated_count = 0
+                for i, trans in enumerate(all_transactions):
+                    if i < len(categorized):
+                        # Update category if it's currently "Other" or uncategorized
+                        if trans.get('category', 'Other') == 'Other':
+                            trans['category'] = categorized[i].get('category', 'Other')
+                            updated_count += 1
+                print(f"Updated {updated_count} transaction categories")
+            except Exception as e:
+                print(f"ERROR during categorization: {e}")
+                print("Continuing with default categories...")
         
         # Generate JavaScript format
+        print("\nGenerating JavaScript export...")
         js_content = generate_js_export(all_transactions)
+        
+        print("\nGenerating summary...")
+        summary = generate_summary(all_transactions)
+        
+        print(f"\nPROCESSING COMPLETE")
+        print(f"Total transactions: {len(all_transactions)}")
+        print(f"Summary: {summary}")
+        print("="*80 + "\n")
         
         return jsonify({
             'transactions': all_transactions,
             'js_export': js_content,
-            'summary': generate_summary(all_transactions)
+            'summary': summary
         })
         
     except Exception as e:
+        print(f"\nFATAL ERROR in parse_pdfs_batch: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 def generate_js_export(transactions):

@@ -327,35 +327,56 @@ class ZivilePDFProcessor:
     
     def process_pdf_batch(self, pdf_files_data):
         """Process multiple PDFs"""
+        print(f"\n{'='*60}")
+        print(f"ZivilePDFProcessor: Starting batch processing")
+        print(f"Number of PDFs to process: {len(pdf_files_data)}")
+        print(f"{'='*60}")
+        
         all_transactions = []
         transaction_id = 1
         
         for i, pdf_data in enumerate(pdf_files_data):
             try:
+                print(f"\n--- Processing PDF {i+1}/{len(pdf_files_data)} ---")
+                print(f"Filename: {pdf_data.get('filename', 'Unknown')}")
+                
                 pdf_content = base64.b64decode(pdf_data['content'])
                 month_name = pdf_data['month']
                 source = pdf_data.get('source', 'Current Account')
                 
-                print(f"\nProcessing PDF {i+1} for {month_name} (Source: {source})")
+                print(f"Month: {month_name}")
+                print(f"Source: {source}")
+                print(f"PDF size: {len(pdf_content)} bytes")
                 
                 text = self.extract_text_from_pdf(pdf_content)
                 
                 if text:
+                    print(f"Text extraction successful: {len(text)} characters")
                     transactions = self.parse_transactions(text, month_name, source)
+                    print(f"Transactions parsed: {len(transactions)}")
                     
+                    # Add IDs and extend list
                     for trans in transactions:
                         trans['id'] = transaction_id
                         transaction_id += 1
+                        # Debug first transaction
+                        if transaction_id == 2:
+                            print(f"Sample transaction: {trans}")
                     
                     all_transactions.extend(transactions)
+                    print(f"Running total: {len(all_transactions)} transactions")
                 else:
-                    print(f"No text extracted from PDF for {month_name}")
+                    print(f"WARNING: No text extracted from PDF for {month_name}")
                     
             except Exception as e:
-                print(f"Error processing PDF {i+1}: {e}")
+                print(f"ERROR processing PDF {i+1}: {e}")
                 import traceback
                 traceback.print_exc()
                 continue
         
-        print(f"\nTotal transactions found: {len(all_transactions)}")
+        print(f"\n{'='*60}")
+        print(f"BATCH PROCESSING COMPLETE")
+        print(f"Total transactions found: {len(all_transactions)}")
+        print(f"{'='*60}\n")
+        
         return all_transactions
