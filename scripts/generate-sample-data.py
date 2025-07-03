@@ -96,7 +96,8 @@ def generate_transactions():
             'description': 'Council Tax',
             'amount': -150.00,
             'category': 'Other',
-            'month': month_name
+            'month': month_name,
+            'source': 'Current Account'
         })
         transaction_id += 1
         
@@ -106,7 +107,8 @@ def generate_transactions():
             'description': 'Rent',
             'amount': -1200.00,
             'category': 'Rent',
-            'month': month_name
+            'month': month_name,
+            'source': 'Current Account'
         })
         transaction_id += 1
         
@@ -143,13 +145,17 @@ def generate_transactions():
             # Generate amount
             amount = round(random.uniform(min_amount, max_amount), 2)
             
+            # Randomly assign to Current Account or Credit Card
+            source = random.choice(['Current Account', 'Credit Card']) if category != 'Rent' else 'Current Account'
+            
             transactions.append({
                 'id': transaction_id,
                 'date': date,
                 'description': merchant,
                 'amount': -amount,
                 'category': category,
-                'month': month_name
+                'month': month_name,
+                'source': source
             })
             transaction_id += 1
     
@@ -181,7 +187,8 @@ export const transactions = [
     description: '{trans['description'].replace("'", "\\'")}',
     amount: {trans['amount']},
     category: '{trans['category']}',
-    month: '{trans['month']}'
+    month: '{trans['month']}',
+    source: '{trans['source']}'
   }},
 """
     

@@ -13,9 +13,17 @@ import json
 class PDFProcessor:
     def __init__(self):
         # Initialize Google Vision client
-        # You'll need to set GOOGLE_APPLICATION_CREDENTIALS env variable
-        # or provide credentials directly
-        self.vision_client = vision.ImageAnnotatorClient()
+        # Try to get credentials from environment variable first
+        creds_json = os.environ.get('GOOGLE_CLOUD_CREDENTIALS')
+        
+        if creds_json:
+            # Use credentials from JSON string in environment variable
+            credentials_dict = json.loads(creds_json)
+            credentials = service_account.Credentials.from_service_account_info(credentials_dict)
+            self.vision_client = vision.ImageAnnotatorClient(credentials=credentials)
+        else:
+            # Fall back to GOOGLE_APPLICATION_CREDENTIALS file
+            self.vision_client = vision.ImageAnnotatorClient()
         
     def extract_text_from_pdf(self, pdf_content):
         """Extract text from PDF using Google Vision API"""
@@ -36,7 +44,7 @@ class PDFProcessor:
             print(f"Error in OCR: {e}")
             return None
     
-    def parse_transactions(self, text, month_name):
+    def parse_transactions(self, text, month_name, source='Current Account'):
         """Parse transactions from extracted text"""
         transactions = []
         
@@ -80,7 +88,8 @@ class PDFProcessor:
                             'description': description,
                             'amount': amount,
                             'category': self.categorize_transaction(description),
-                            'month': month_name
+                            'month': month_name,
+                            'source': source
                         }
                         
                         transactions.append(transaction)
