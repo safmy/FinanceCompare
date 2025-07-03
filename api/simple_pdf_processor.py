@@ -26,12 +26,31 @@ class SimplePDFProcessor:
             # Extract text from all pages
             all_text = ""
             for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                text = page.extract_text()
-                all_text += text + "\n"
+                try:
+                    page = pdf_reader.pages[page_num]
+                    text = page.extract_text()
+                    all_text += text + "\n"
+                except Exception as page_error:
+                    print(f"Warning: Error reading page {page_num + 1}: {page_error}")
+                    continue
             
             print(f"PyPDF2 extracted {len(all_text)} characters")
-            return all_text
+            
+            # If PyPDF2 fails to extract text, try alternative method
+            if len(all_text.strip()) < 100:
+                print("Minimal text extracted, trying alternative extraction...")
+                # Reset file pointer
+                pdf_file.seek(0)
+                # Try with different settings
+                try:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file, strict=False)
+                    all_text = ""
+                    for page in pdf_reader.pages:
+                        all_text += page.extract_text() + "\n"
+                except:
+                    pass
+            
+            return all_text if all_text else None
             
         except Exception as e:
             print(f"Error extracting PDF text: {e}")
@@ -46,14 +65,23 @@ class SimplePDFProcessor:
         lines = text.split('\n')
         
         # Pattern for your bank statement format
-        # PyPDF2 extracts dates without spaces: "11 Dec2409 Dec24" instead of "11 Dec 24  09 Dec 24"
+        # Different patterns for different bank statement formats
         patterns = [
-            # With ))) markers - dates concatenated
-            r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+\)+\s*([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?',
-            # Without ))) markers - dates concatenated
-            r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?',
-            # Alternative pattern for different formats
-            r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+(.+?)\s+([\d,]+\.\d{2})(?:\s*CR)?'
+            # Credit card format - PyPDF2 extracts dates without spaces: "11 Dec2409 Dec24"
+            (r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+\)+\s*([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?', 'credit_card_with_markers'),
+            (r'(\d{1,2}\s+\w{3})(\d{2})(\d{2})\s+\w{3}\d{2}\s+([^£\d]+?)\s+([\d,]+\.\d{2})(?:\s*CR)?', 'credit_card_no_markers'),
+            
+            # Current account formats - common patterns
+            (r'(\d{2}\s+\w{3}\s+\d{2})\s+(.+?)\s+£?([\d,]+\.\d{2})\s*(?:CR|DR)?', 'current_account_simple'),
+            (r'(\d{2}\s+\w{3})\s+(.+?)\s+([\d,]+\.\d{2})\s*(?:CR|DR)?', 'current_account_no_year'),
+            
+            # More flexible patterns
+            (r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\s+(.+?)\s+£?([\d,]+\.\d{2})', 'date_with_slashes'),
+            (r'(\d{1,2}\s+\w{3}\s+\d{2,4})\s+(.+?)\s+£?([\d,]+\.\d{2})', 'standard_date_format'),
+            
+            # HSBC current account format from your screenshot
+            (r'(\d{2}\s+\w{3}\s+\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*(?:D)?', 'hsbc_current_format'),
+            (r'([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*(?:D)?', 'hsbc_current_no_date')
         ]
         
         transaction_count = 0
@@ -64,33 +92,64 @@ class SimplePDFProcessor:
                 continue
             
             # Skip headers and footers
-            if any(skip in line.upper() for skip in ['BALANCE', 'STATEMENT', 'PAGE', 'TOTAL SPENT', 'TRANSACTIONS']):
+            if any(skip in line.upper() for skip in ['BALANCE BROUGHT', 'BALANCE CARRIED', 'STATEMENT', 'PAGE', 'TOTAL SPENT', 'TRANSACTIONS', 'SHEET NUMBER']):
                 continue
             
             matched = False
-            for pattern in patterns:
-                match = re.search(pattern, line)
+            for pattern_regex, pattern_type in patterns:
+                match = re.search(pattern_regex, line)
                 if match:
                     try:
-                        # For the new patterns, we have: date_part, year1, year2, description, amount
-                        date_part = match.group(1)  # e.g., "11 Dec"
-                        year_str = match.group(2)   # e.g., "24" (from Dec24)
-                        # match.group(3) is the second year which we don't need
-                        description = match.group(4).strip()
-                        amount_str = match.group(5)
+                        # Parse based on pattern type
+                        if pattern_type.startswith('credit_card'):
+                            # Credit card format: date_part, year1, year2, description, amount
+                            date_part = match.group(1)  # e.g., "11 Dec"
+                            year_str = match.group(2)   # e.g., "24" (from Dec24)
+                            description = match.group(4).strip()
+                            amount_str = match.group(5)
+                            date_str = f"{date_part} {year_str}"  # "11 Dec 24"
+                            
+                        elif pattern_type == 'hsbc_current_format':
+                            # HSBC current: date, type_code, description, amount
+                            date_str = match.group(1)
+                            type_code = match.group(2)  # ATM, DD, BP, etc.
+                            description = f"{type_code} {match.group(3).strip()}"
+                            amount_str = match.group(4)
+                            
+                        elif pattern_type == 'hsbc_current_no_date':
+                            # HSBC current without date: type_code, description, amount
+                            type_code = match.group(1)
+                            description = f"{type_code} {match.group(2).strip()}"
+                            amount_str = match.group(3)
+                            # Use a default date or extract from context
+                            date_str = f"01 {month_name[:3]} 24"
+                            
+                        else:
+                            # Generic formats
+                            date_str = match.group(1)
+                            description = match.group(2).strip()
+                            amount_str = match.group(3)
                         
-                        # Parse date - combine date_part and year
-                        date_str = f"{date_part} {year_str}"  # "11 Dec 24"
-                        try:
-                            date_obj = datetime.strptime(date_str, "%d %b %y")
-                            formatted_date = date_obj.strftime("%Y-%m-%d")
-                        except:
-                            # Try alternative format
+                        # Parse date with multiple format attempts
+                        formatted_date = None
+                        date_formats = [
+                            "%d %b %y", "%d %b %Y", "%d/%m/%Y", "%d-%m-%Y",
+                            "%d/%m/%y", "%d-%m-%y", "%d %b", "%Y-%m-%d"
+                        ]
+                        
+                        for fmt in date_formats:
                             try:
-                                date_obj = datetime.strptime(date_str, "%d %b %Y")
+                                date_obj = datetime.strptime(date_str.strip(), fmt)
+                                # If year is missing, use current year
+                                if fmt in ["%d %b", "%d/%m", "%d-%m"]:
+                                    date_obj = date_obj.replace(year=2024)
                                 formatted_date = date_obj.strftime("%Y-%m-%d")
+                                break
                             except:
-                                formatted_date = f"2024-{transaction_count:02d}-01"  # Fallback
+                                continue
+                        
+                        if not formatted_date:
+                            formatted_date = f"2024-{transaction_count:02d}-01"  # Fallback
                         
                         # Parse amount
                         amount = float(amount_str.replace(',', ''))
@@ -98,8 +157,10 @@ class SimplePDFProcessor:
                         # Check if it's a credit (positive) or debit (negative)
                         if 'CR' in line:
                             amount = abs(amount)  # Credit
+                        elif 'D' in line[-5:] or source == 'Current Account':
+                            amount = -abs(amount)  # Debit (D at end or current account default)
                         else:
-                            amount = -abs(amount)  # Debit
+                            amount = -abs(amount)  # Default to debit for expenses
                         
                         # Clean description - remove extra spaces and location info
                         description = re.sub(r'\s+', ' ', description)
@@ -177,14 +238,21 @@ class SimplePDFProcessor:
                 pdf_content = base64.b64decode(pdf_data['content'])
                 month_name = pdf_data['month']
                 
-                print(f"\nProcessing PDF {i+1} for {month_name}")
+                # Determine source from filename or path
+                source = pdf_data.get('source', 'Credit Card')
+                if 'filename' in pdf_data:
+                    filename = pdf_data['filename'].lower()
+                    if 'current' in filename or 'checking' in filename:
+                        source = 'Current Account'
+                
+                print(f"\nProcessing PDF {i+1} for {month_name} (Source: {source})")
                 
                 # Extract text using PyPDF2
                 text = self.extract_text_from_pdf(pdf_content)
                 
                 if text:
-                    # Parse transactions
-                    transactions = self.parse_transactions(text, month_name)
+                    # Parse transactions with source
+                    transactions = self.parse_transactions(text, month_name, source)
                     
                     # Add sequential IDs
                     for trans in transactions:

@@ -92,5 +92,10 @@ def test_pdf_extraction(pdf_path):
 
 if __name__ == "__main__":
     # Test the PDF file
+    print("=== TESTING CREDIT CARD STATEMENT ===")
     pdf_path = "/Users/safmy/Desktop/OCR_Arabic-1/FinanceCompare/2025-01-09_Statement.pdf"
     test_pdf_extraction(pdf_path)
+    
+    print("\n\n=== TESTING CURRENT ACCOUNT STATEMENT ===")
+    current_account_path = "/Users/safmy/Desktop/OCR_Arabic-1/FinanceCompare/current account/2025-01-07_Statement.pdf"
+    test_pdf_extraction(current_account_path)

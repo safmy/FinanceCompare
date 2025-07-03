@@ -150,7 +150,9 @@ def parse_pdf_vision():
         processor = PDFProcessor()
         transactions = processor.process_pdf_batch([{
             'content': pdf_base64,
-            'month': month
+            'month': month,
+            'filename': file.filename,
+            'source': 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
         }])
         
         return jsonify({'transactions': transactions})
@@ -178,7 +180,9 @@ def parse_pdfs_batch():
                 month = months[i] if i < len(months) else f'Month {i+1}'
                 pdf_data.append({
                     'content': pdf_base64,
-                    'month': month
+                    'month': month,
+                    'filename': file.filename,
+                    'source': 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
                 })
         
         # Process all PDFs
