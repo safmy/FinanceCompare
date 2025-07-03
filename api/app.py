@@ -12,17 +12,22 @@ from datetime import datetime
 import tempfile
 import base64
 try:
-    # Try fixed processor first
-    from fixed_pdf_processor import FixedPDFProcessor as PDFProcessor
-    print("Using fixed PDF processor")
+    # Try multiline processor first
+    from multiline_pdf_processor import MultilinePDFProcessor as PDFProcessor
+    print("Using multiline PDF processor")
 except ImportError:
     try:
-        # Fallback to enhanced processor
-        from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
-        print("Using enhanced PDF processor")
-    except ImportError as e:
-        print(f"Error importing PDF processors: {e}")
-        PDFProcessor = None
+        # Fallback to corrected processor
+        from corrected_pdf_processor import CorrectedPDFProcessor as PDFProcessor
+        print("Using corrected PDF processor")
+    except ImportError:
+        try:
+            # Fallback to enhanced processor
+            from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
+            print("Using enhanced PDF processor")
+        except ImportError as e:
+            print(f"Error importing PDF processors: {e}")
+            PDFProcessor = None
 
 app = Flask(__name__)
 CORS(app)
