@@ -11,7 +11,11 @@ import re
 from datetime import datetime
 import tempfile
 import base64
-from pdf_processor import PDFProcessor
+try:
+    from pdf_processor import PDFProcessor
+except ImportError as e:
+    print(f"Error importing PDFProcessor: {e}")
+    PDFProcessor = None
 
 app = Flask(__name__)
 CORS(app)
@@ -137,6 +141,9 @@ def parse_pdf_vision():
         pdf_base64 = base64.b64encode(pdf_content).decode()
         
         # Process with Google Vision
+        if PDFProcessor is None:
+            return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
+            
         processor = PDFProcessor()
         transactions = processor.process_pdf_batch([{
             'content': pdf_base64,
@@ -173,6 +180,10 @@ def parse_pdfs_batch():
         
         # Process all PDFs
         print(f"Processing {len(pdf_data)} PDFs")
+        
+        if PDFProcessor is None:
+            return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
+            
         processor = PDFProcessor()
         all_transactions = processor.process_pdf_batch(pdf_data)
         print(f"Found {len(all_transactions)} total transactions")

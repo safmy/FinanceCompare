@@ -7,12 +7,14 @@ import base64
 import re
 from datetime import datetime
 from google.cloud import vision
+from google.cloud import documentai_v1beta3 as documentai
 from google.oauth2 import service_account
 import json
+import fitz  # PyMuPDF
 
 class PDFProcessor:
     def __init__(self):
-        # Initialize Google Vision client
+        # Initialize Google clients
         # Try to get credentials from environment variable first
         creds_json = os.environ.get('GOOGLE_CLOUD_CREDENTIALS')
         
@@ -21,14 +23,30 @@ class PDFProcessor:
             credentials_dict = json.loads(creds_json)
             credentials = service_account.Credentials.from_service_account_info(credentials_dict)
             self.vision_client = vision.ImageAnnotatorClient(credentials=credentials)
+            self.documentai_client = documentai.DocumentProcessorServiceClient(credentials=credentials)
         else:
             # Fall back to GOOGLE_APPLICATION_CREDENTIALS file
             self.vision_client = vision.ImageAnnotatorClient()
+            self.documentai_client = documentai.DocumentProcessorServiceClient()
+        
+        # Document AI configuration - from your Discord bot
+        self.project_id = '693097981002'
+        self.location = 'us'
+        self.processor_id = 'f62c14e46f0365a9'
         
     def extract_text_from_pdf(self, pdf_content):
-        """Extract text from PDF using Google Vision API"""
+        """Extract text from PDF using Document AI (same as Discord bot)"""
         try:
-            # Try pdf2image approach
+            # Try Document AI first (proven to work in Discord bot)
+            try:
+                text = self.extract_with_document_ai(pdf_content)
+                if text:
+                    print(f"Document AI extracted {len(text)} characters")
+                    return text
+            except Exception as e:
+                print(f"Document AI failed: {e}")
+            
+            # Try pdf2image approach as fallback
             try:
                 from pdf_to_image import extract_text_from_pdf_pages
                 text = extract_text_from_pdf_pages(self.vision_client, pdf_content)
@@ -57,6 +75,30 @@ class PDFProcessor:
             import traceback
             traceback.print_exc()
             return None
+    
+    def extract_with_document_ai(self, pdf_content):
+        """Extract text using Document AI - same method as Discord bot"""
+        # Document AI can process up to 15 pages at once
+        name = f'projects/{self.project_id}/locations/{self.location}/processors/{self.processor_id}'
+        
+        # Create raw document from PDF content
+        raw_document = documentai.RawDocument(
+            content=pdf_content, 
+            mime_type='application/pdf'
+        )
+        
+        # Create request
+        request = documentai.ProcessRequest(
+            name=name, 
+            raw_document=raw_document
+        )
+        
+        # Process the document
+        result = self.documentai_client.process_document(request=request)
+        document = result.document
+        
+        # Extract all text
+        return document.text
     
     def parse_transactions(self, text, month_name, source='Current Account'):
         """Parse transactions from extracted text"""
