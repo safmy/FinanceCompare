@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import CategoryCard from './components/CategoryCard';
 import TransactionTable from './components/TransactionTable';
 import MonthlyTrends from './components/MonthlyTrends';
@@ -60,7 +60,6 @@ function App() {
     .sort((a, b) => b.value - a.value);
 
   // Calculate summary statistics
-  const avgDailySpending = totalSpending / (filteredTransactions.length || 1);
   const transactionCount = filteredTransactions.length;
   const avgTransactionAmount = totalSpending / (transactionCount || 1);
 

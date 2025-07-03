@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 
 const DataUpload = ({ onDataUpload }) => {
   const [showInstructions, setShowInstructions] = useState(false);
