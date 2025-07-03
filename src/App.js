@@ -4,6 +4,7 @@ import TransactionTable from './components/TransactionTable';
 import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
 import DataUpload from './components/DataUpload';
+import PDFUpload from './components/PDFUpload';
 import { transactions as sampleTransactions, categoryColors } from './data/fullTransactionData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Calendar, TrendingUp, DollarSign, Upload } from 'lucide-react';
@@ -225,7 +226,10 @@ function App() {
         )}
 
         {activeTab === 'upload' && (
-          <DataUpload onDataUpload={handleDataUpload} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <PDFUpload onDataUpload={handleDataUpload} />
+            <DataUpload onDataUpload={handleDataUpload} />
+          </div>
         )}
       </main>
 

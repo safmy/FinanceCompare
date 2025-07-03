@@ -10,6 +10,8 @@ from typing import List, Dict, Any
 import re
 from datetime import datetime
 import tempfile
+import base64
+from pdf_processor import PDFProcessor
 
 app = Flask(__name__)
 CORS(app)
@@ -89,6 +91,118 @@ def parse_excel():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/parse-pdf-vision', methods=['POST'])
+def parse_pdf_vision():
+    """Parse PDF using Google Vision API for better OCR accuracy"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type'}), 400
+        
+        # Get month from request
+        month = request.form.get('month', 'Unknown')
+        
+        # Read file content
+        pdf_content = file.read()
+        pdf_base64 = base64.b64encode(pdf_content).decode()
+        
+        # Process with Google Vision
+        processor = PDFProcessor()
+        transactions = processor.process_pdf_batch([{
+            'content': pdf_base64,
+            'month': month
+        }])
+        
+        return jsonify({'transactions': transactions})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/parse-pdfs-batch', methods=['POST'])
+def parse_pdfs_batch():
+    """Parse multiple PDFs at once"""
+    try:
+        files = request.files.getlist('files')
+        if not files:
+            return jsonify({'error': 'No files provided'}), 400
+        
+        # Get months from request
+        months = request.form.getlist('months')
+        
+        pdf_data = []
+        for i, file in enumerate(files):
+            if file and allowed_file(file.filename):
+                pdf_content = file.read()
+                pdf_base64 = base64.b64encode(pdf_content).decode()
+                
+                month = months[i] if i < len(months) else f'Month {i+1}'
+                pdf_data.append({
+                    'content': pdf_base64,
+                    'month': month
+                })
+        
+        # Process all PDFs
+        processor = PDFProcessor()
+        all_transactions = processor.process_pdf_batch(pdf_data)
+        
+        # Generate JavaScript format
+        js_content = generate_js_export(all_transactions)
+        
+        return jsonify({
+            'transactions': all_transactions,
+            'js_export': js_content,
+            'summary': generate_summary(all_transactions)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def generate_js_export(transactions):
+    """Generate JavaScript export format for frontend"""
+    js_content = "export const transactions = [\n"
+    
+    for trans in transactions:
+        js_content += f"  {{\n"
+        js_content += f"    id: {trans['id']},\n"
+        js_content += f"    date: '{trans['date']}',\n"
+        js_content += f"    description: '{trans['description'].replace('\"', '\\\"')}',\n"
+        js_content += f"    amount: {trans['amount']},\n"
+        js_content += f"    category: '{trans['category']}',\n"
+        js_content += f"    month: '{trans['month']}'\n"
+        js_content += f"  }},\n"
+    
+    js_content += "];\n"
+    return js_content
+
+def generate_summary(transactions):
+    """Generate summary statistics"""
+    categories = {}
+    total_spending = 0
+    
+    for trans in transactions:
+        if trans['amount'] < 0:  # Only count debits
+            amount = abs(trans['amount'])
+            total_spending += amount
+            
+            category = trans['category']
+            if category not in categories:
+                categories[category] = {'count': 0, 'amount': 0}
+            
+            categories[category]['count'] += 1
+            categories[category]['amount'] += amount
+    
+    return {
+        'total_spending': total_spending,
+        'transaction_count': len(transactions),
+        'categories': categories
+    }
 
 @app.route('/api/categorize', methods=['POST'])
 def categorize_transactions():
