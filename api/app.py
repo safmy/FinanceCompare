@@ -149,8 +149,10 @@ def parse_pdfs_batch():
                 })
         
         # Process all PDFs
+        print(f"Processing {len(pdf_data)} PDFs")
         processor = PDFProcessor()
         all_transactions = processor.process_pdf_batch(pdf_data)
+        print(f"Found {len(all_transactions)} total transactions")
         
         # Generate JavaScript format
         js_content = generate_js_export(all_transactions)

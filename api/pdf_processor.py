@@ -48,8 +48,17 @@ class PDFProcessor:
         """Parse transactions from extracted text"""
         transactions = []
         
+        # Log first few lines for debugging
+        print(f"Parsing transactions for {month_name}")
+        print(f"First 500 chars of text: {text[:500] if text else 'No text'}")
+        print(f"Total text length: {len(text) if text else 0}")
+        
         # Common UK bank statement patterns
         patterns = [
+            # Pattern from your statement: DD Mon YY  DD Mon YY  ))) DESCRIPTION  LOCATION  AMOUNT
+            r'(\d{1,2}\s+\w{3}\s+\d{2})\s+\d{1,2}\s+\w{3}\s+\d{2}\s+\)+\s*(.+?)\s+([\d,]+\.\d{2})(?:\s*CR)?$',
+            # Alternative pattern without )))
+            r'(\d{1,2}\s+\w{3}\s+\d{2})\s+\d{1,2}\s+\w{3}\s+\d{2}\s+(.+?)\s+([\d,]+\.\d{2})(?:\s*CR)?$',
             # Pattern: DD MMM DESCRIPTION AMOUNT
             r'(\d{1,2}\s+\w{3})\s+(.+?)\s+£?([\d,]+\.\d{2})',
             # Pattern: DD/MM/YYYY DESCRIPTION AMOUNT
@@ -59,6 +68,13 @@ class PDFProcessor:
         ]
         
         lines = text.split('\n')
+        
+        # Log sample lines
+        print(f"Total lines: {len(lines)}")
+        if lines:
+            print(f"Sample lines:")
+            for i, line in enumerate(lines[:10]):
+                print(f"  Line {i}: {line}")
         
         for line in lines:
             # Skip header/footer lines
@@ -78,7 +94,10 @@ class PDFProcessor:
                         description = re.sub(r'[*#]', '', description)
                         
                         # Determine if debit or credit
-                        if 'CR' in line or any(credit in description.upper() for credit in ['PAYMENT', 'CREDIT', 'REFUND']):
+                        # Check if CR is at the end of the line (credit)
+                        if line.rstrip().endswith('CR') or 'CR' in line.split()[-1:]:
+                            amount = abs(amount)
+                        elif any(credit in description.upper() for credit in ['PAYMENT', 'CREDIT', 'REFUND', 'THANK YOU']):
                             amount = abs(amount)
                         else:
                             amount = -abs(amount)
@@ -130,7 +149,7 @@ class PDFProcessor:
             'Groceries': ['TESCO', 'SAINSBURY', 'ASDA', 'WAITROSE', 'LIDL', 'ALDI', 'MORRISONS', 'CO-OP', 'M&S FOOD'],
             'Transport': ['TFL', 'UBER', 'RAIL', 'TRAIN', 'BUS', 'TUBE', 'OYSTER', 'TAXI', 'CITYMAPPER'],
             'Fast Food': ['MCDONALD', 'KFC', 'BURGER', 'SUBWAY', 'PIZZA', 'DOMINO', 'PAPA JOHN', 'FIVE GUYS', 'GREGGS'],
-            'Coffee Shops': ['COSTA', 'STARBUCKS', 'PRET', 'NERO', 'COFFEE', 'CAFE', 'BREW'],
+            'Coffee Shops': ['COSTA', 'STARBUCKS', 'PRET', 'NERO', 'COFFEE', 'CAFE', 'BREW', 'CAFFE NERO'],
             'Food Delivery': ['DELIVEROO', 'JUST EAT', 'UBER EAT', 'FOODHUB', 'ZOMATO'],
             'Subscriptions': ['NETFLIX', 'SPOTIFY', 'AMAZON PRIME', 'DISNEY', 'APPLE', 'GOOGLE', 'MICROSOFT', 'ADOBE'],
             'Fuel': ['SHELL', 'BP', 'ESSO', 'TEXACO', 'PETROL', 'FUEL', 'MURCO', 'GULF'],
@@ -155,9 +174,11 @@ class PDFProcessor:
         all_transactions = []
         transaction_id = 1
         
-        for pdf_data in pdf_files_data:
+        for i, pdf_data in enumerate(pdf_files_data):
             pdf_content = pdf_data['content']  # Base64 encoded
             month_name = pdf_data['month']
+            
+            print(f"\nProcessing PDF {i+1} for {month_name}")
             
             # Extract text using OCR
             text = self.extract_text_from_pdf(base64.b64decode(pdf_content))
@@ -165,6 +186,7 @@ class PDFProcessor:
             if text:
                 # Parse transactions
                 transactions = self.parse_transactions(text, month_name)
+                print(f"Found {len(transactions)} transactions in {month_name}")
                 
                 # Add IDs
                 for trans in transactions:
@@ -172,5 +194,8 @@ class PDFProcessor:
                     transaction_id += 1
                 
                 all_transactions.extend(transactions)
+            else:
+                print(f"No text extracted from PDF for {month_name}")
         
+        print(f"\nTotal transactions found: {len(all_transactions)}")
         return all_transactions
