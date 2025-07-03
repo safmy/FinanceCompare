@@ -12,14 +12,14 @@ from datetime import datetime
 import tempfile
 import base64
 try:
-    # Try enhanced processor first
-    from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
-    print("Using enhanced PDF processor")
+    # Try fixed processor first
+    from fixed_pdf_processor import FixedPDFProcessor as PDFProcessor
+    print("Using fixed PDF processor")
 except ImportError:
     try:
-        # Fallback to simple processor
-        from simple_pdf_processor import SimplePDFProcessor as PDFProcessor
-        print("Using simple PDF processor (PyPDF2)")
+        # Fallback to enhanced processor
+        from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
+        print("Using enhanced PDF processor")
     except ImportError as e:
         print(f"Error importing PDF processors: {e}")
         PDFProcessor = None
