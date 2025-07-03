@@ -206,7 +206,10 @@ const PDFUpload = ({ onDataUpload }) => {
                 Processing PDFs...
               </>
             ) : (
-              'Process All PDFs'
+              <>
+                <Upload className="w-5 h-5 mr-2" />
+                Process All PDFs
+              </>
             )}
           </button>
         </div>
