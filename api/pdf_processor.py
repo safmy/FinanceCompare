@@ -28,8 +28,17 @@ class PDFProcessor:
     def extract_text_from_pdf(self, pdf_content):
         """Extract text from PDF using Google Vision API"""
         try:
-            # Convert PDF to image pages first (Google Vision works with images)
-            # For now, we'll assume the PDF content is base64 encoded
+            # Try pdf2image approach
+            try:
+                from pdf_to_image import extract_text_from_pdf_pages
+                text = extract_text_from_pdf_pages(self.vision_client, pdf_content)
+                if text:
+                    print(f"PDF2Image approach extracted {len(text)} characters")
+                    return text
+            except ImportError:
+                print("pdf2image not available, trying direct approach")
+            
+            # Fallback to direct Vision API (might not work for PDFs)
             image = vision.Image(content=pdf_content)
             
             # Perform OCR
@@ -38,10 +47,15 @@ class PDFProcessor:
             if response.error.message:
                 raise Exception(f"Vision API error: {response.error.message}")
                 
-            return response.full_text_annotation.text
+            extracted_text = response.full_text_annotation.text
+            print(f"Vision API extracted {len(extracted_text) if extracted_text else 0} characters")
+            return extracted_text
             
         except Exception as e:
             print(f"Error in OCR: {e}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def parse_transactions(self, text, month_name, source='Current Account'):
@@ -75,6 +89,15 @@ class PDFProcessor:
             print(f"Sample lines:")
             for i, line in enumerate(lines[:10]):
                 print(f"  Line {i}: {line}")
+        
+        # Check if this looks like a bank statement format
+        if any(')))' in line for line in lines[:20]) or any(re.search(r'\d{2}\s+\w{3}\s+\d{2}', line) for line in lines[:20]):
+            print("Detected bank statement format, using manual parser")
+            try:
+                from manual_parser import parse_bank_statement_text
+                return parse_bank_statement_text(text, month_name)
+            except Exception as e:
+                print(f"Manual parser failed: {e}")
         
         for line in lines:
             # Skip header/footer lines

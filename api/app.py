@@ -30,6 +30,29 @@ def allowed_file(filename):
 def health_check():
     return jsonify({'status': 'healthy', 'service': 'FinanceCompare API'})
 
+@app.route('/api/test-pdf', methods=['POST'])
+def test_pdf():
+    """Test PDF extraction without parsing"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        pdf_content = file.read()
+        
+        # Try to extract text
+        processor = PDFProcessor()
+        text = processor.extract_text_from_pdf(pdf_content)
+        
+        return jsonify({
+            'success': text is not None,
+            'text_length': len(text) if text else 0,
+            'first_500_chars': text[:500] if text else None,
+            'pdf_size': len(pdf_content)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'type': type(e).__name__}), 500
+
 @app.route('/api/parse-pdf', methods=['POST'])
 def parse_pdf():
     try:
