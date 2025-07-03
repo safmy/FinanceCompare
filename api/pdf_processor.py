@@ -10,7 +10,7 @@ from google.cloud import vision
 from google.cloud import documentai_v1beta3 as documentai
 from google.oauth2 import service_account
 import json
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF - commented out to save memory
 
 class PDFProcessor:
     def __init__(self):

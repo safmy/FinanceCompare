@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 import json
-import pandas as pd
-import pdfplumber
+# import pandas as pd  # Removed to save memory
+# import pdfplumber  # Using PyPDF2 instead
 import openai
 from werkzeug.utils import secure_filename
 from typing import List, Dict, Any
@@ -12,9 +12,11 @@ from datetime import datetime
 import tempfile
 import base64
 try:
-    from pdf_processor import PDFProcessor
+    # Use simple PyPDF2 processor - most efficient for typed PDFs
+    from simple_pdf_processor import SimplePDFProcessor as PDFProcessor
+    print("Using simple PDF processor (PyPDF2)")
 except ImportError as e:
-    print(f"Error importing PDFProcessor: {e}")
+    print(f"Error importing SimplePDFProcessor: {e}")
     PDFProcessor = None
 
 app = Flask(__name__)
