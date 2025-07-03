@@ -195,6 +195,18 @@ def parse_pdfs_batch():
         all_transactions = processor.process_pdf_batch(pdf_data)
         print(f"Found {len(all_transactions)} total transactions")
         
+        # Auto-categorize transactions using GPT-4
+        if all_transactions:
+            print(f"Auto-categorizing {len(all_transactions)} transactions...")
+            categorized = categorize_with_openai(all_transactions)
+            
+            # Apply categories back to transactions
+            for i, trans in enumerate(all_transactions):
+                if i < len(categorized):
+                    # Update category if it's currently "Other" or uncategorized
+                    if trans.get('category', 'Other') == 'Other':
+                        trans['category'] = categorized[i].get('category', 'Other')
+        
         # Generate JavaScript format
         js_content = generate_js_export(all_transactions)
         
@@ -430,91 +442,98 @@ def parse_excel_row(row: pd.Series, index: int) -> Dict[str, Any]:
 def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Use OpenAI to categorize transactions"""
     try:
-        # Prepare transaction descriptions
-        transaction_list = "\n".join([
-            f"{i+1}. {t['description']} (£{abs(t['amount']):.2f}) {'CR' if t['amount'] > 0 else 'DR'}"
-            for i, t in enumerate(transactions[:50])  # Limit to 50 transactions
-        ])
+        all_categorized = []
         
-        prompt = f"""
-        Categorize the following UK bank transactions intelligently. Be specific and accurate based on the merchant names:
+        # Process in batches of 40 to avoid token limits
+        batch_size = 40
+        for batch_start in range(0, len(transactions), batch_size):
+            batch = transactions[batch_start:batch_start + batch_size]
+            
+            # Prepare transaction descriptions
+            transaction_list = "\n".join([
+                f"{i+1}. {t['description']} (£{abs(t.get('amount', 0)):.2f}) {'CR' if t.get('amount', 0) > 0 else 'DR'}"
+                for i, t in enumerate(batch)
+            ])
+        
+            prompt = f"""
+            Categorize the following UK bank transactions intelligently. Be specific and accurate based on the merchant names:
 
-        Categories to use:
-        - Income (salaries, payments received, transfers in - PAYSTREAM, CR PAYMENTS)
-        - Rent (monthly rent payments)
-        - Bills & Utilities (electricity, gas, water, internet, phone - EDF ENERGY, BT GROUP)
-        - Groceries (supermarkets - TESCO, SAINSBURY'S, ASDA, CO-OP, BUDGENS)
-        - Restaurants (sit-down dining - NANDO'S, WAGAMAMA, restaurants)
-        - Fast Food (quick service - MCDONALD'S, KFC, SUBWAY, GREGGS)
-        - Food Delivery (DELIVEROO, JUST EAT, UBER EATS)
-        - Coffee Shops (CAFFE NERO, STARBUCKS, COSTA)
-        - Transport (TFL, trains, buses, UBER, taxis)
-        - Fuel (petrol stations - BP, SHELL, ESSO)
-        - Parking (parking fees, RINGGO, NCP)
-        - Shopping (retail stores, online shopping - AMAZON, IKEA, clothing)
-        - Subscriptions (recurring services - NETFLIX, SPOTIFY, gym memberships like EVERYONE ACTIVE)
-        - Financial Services (PAYPAL, bank fees, ATM)
-        - Entertainment (cinema, gaming, streaming)
-        - Healthcare (pharmacy, medical)
-        - Personal Care (barber, beauty)
-        - Other (anything else)
-        
-        Important notes:
-        - PAYSTREAM/CRPAYSTREAM = Income (salary)
-        - DDPAYPAL = Financial Services (PayPal direct debit)
-        - DDEVERYONE ACTIVE = Subscriptions (gym membership)
-        - PAYMENT THANK YOU = Income
-        - Look for DD prefix = Direct Debit
-        - Look for CR suffix = Credit (income)
-        
-        Transactions:
-        {transaction_list}
-        
-        Return as JSON array with format:
-        [
-            {{
-                "category": "Category Name",
-                "merchant": "Clean Merchant Name"
-            }}
-        ]
-        """
-        
-        response = openai.ChatCompletion.create(
-            model="gpt-4-1106-preview",  # Using GPT-4 for better categorization
-            messages=[
-                {"role": "system", "content": "You are an expert financial categorization assistant for UK bank statements."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0,
-            max_tokens=2000
-        )
-        
-        result = response.choices[0].message['content']
-        
-        # Extract JSON from response
-        json_match = re.search(r'\[.*\]', result, re.DOTALL)
-        if json_match:
-            categories = json.loads(json_match.group())
+            Categories to use:
+            - Income (salaries, payments received, transfers in - PAYSTREAM, CR PAYMENTS)
+            - Rent (monthly rent payments)
+            - Bills & Utilities (electricity, gas, water, internet, phone - EDF ENERGY, BT GROUP)
+            - Groceries (supermarkets - TESCO, SAINSBURY'S, ASDA, CO-OP, BUDGENS)
+            - Restaurants (sit-down dining - NANDO'S, WAGAMAMA, restaurants)
+            - Fast Food (quick service - MCDONALD'S, KFC, SUBWAY, GREGGS)
+            - Food Delivery (DELIVEROO, JUST EAT, UBER EATS)
+            - Coffee Shops (CAFFE NERO, STARBUCKS, COSTA)
+            - Transport (TFL, trains, buses, UBER, taxis)
+            - Fuel (petrol stations - BP, SHELL, ESSO)
+            - Parking (parking fees, RINGGO, NCP)
+            - Shopping (retail stores, online shopping - AMAZON, IKEA, clothing)
+            - Subscriptions (recurring services - NETFLIX, SPOTIFY, gym memberships like EVERYONE ACTIVE)
+            - Financial Services (PAYPAL, bank fees, ATM)
+            - Entertainment (cinema, gaming, streaming)
+            - Healthcare (pharmacy, medical)
+            - Personal Care (barber, beauty)
+            - Other (anything else)
             
-            # Apply categories to all transactions
-            categorized = []
-            for i, transaction in enumerate(transactions):
-                if i < len(categories):
-                    categorized.append({
-                        'category': categories[i].get('category', 'Other'),
-                        'merchant': categories[i].get('merchant', transaction['description'])
-                    })
-                else:
-                    # Fallback for transactions beyond the limit
-                    categorized.append({
+            Important notes:
+            - PAYSTREAM/CRPAYSTREAM = Income (salary)
+            - DDPAYPAL = Financial Services (PayPal direct debit)
+            - DDEVERYONE ACTIVE = Subscriptions (gym membership)
+            - PAYMENT THANK YOU = Income
+            - Look for DD prefix = Direct Debit
+            - Look for CR suffix = Credit (income)
+            - ATM = Financial Services (cash withdrawal)
+            - HSBC/bank names = Financial Services
+            - CR at start or CRPAYSTREAM = Income
+            
+            Transactions:
+            {transaction_list}
+            
+            Return as JSON array with format:
+            [
+                {{
+                    "category": "Category Name",
+                    "merchant": "Clean Merchant Name"
+                }}
+            ]
+            """
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-4-1106-preview",  # Using GPT-4 for better categorization
+                messages=[
+                    {"role": "system", "content": "You are an expert financial categorization assistant for UK bank statements."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0,
+                max_tokens=2000
+            )
+            
+            result = response.choices[0].message['content']
+            
+            # Extract JSON from response
+            json_match = re.search(r'\[.*\]', result, re.DOTALL)
+            if json_match:
+                categories = json.loads(json_match.group())
+                
+                # Add to all categorized
+                for i, cat in enumerate(categories):
+                    if i < len(batch):
+                        all_categorized.append({
+                            'category': cat.get('category', 'Other'),
+                            'merchant': cat.get('merchant', batch[i].get('description', ''))
+                        })
+            else:
+                # Fallback for this batch
+                for t in batch:
+                    all_categorized.append({
                         'category': 'Other',
-                        'merchant': transaction['description']
+                        'merchant': t.get('description', '')
                     })
-            
-            return categorized
         
-        # Fallback if parsing fails
-        return [{'category': 'Other', 'merchant': t['description']} for t in transactions]
+        return all_categorized
         
     except Exception as e:
         print(f"Error categorizing with OpenAI: {e}")

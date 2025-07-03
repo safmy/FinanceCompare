@@ -81,7 +81,11 @@ class SimplePDFProcessor:
             
             # HSBC current account format from your screenshot
             (r'(\d{2}\s+\w{3}\s+\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*(?:D)?', 'hsbc_current_format'),
-            (r'([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*(?:D)?', 'hsbc_current_no_date')
+            (r'([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})\s*(?:D)?', 'hsbc_current_no_date'),
+            
+            # Additional HSBC formats
+            (r'(\d{2}[A-Za-z]{3}\d{2})\s+([A-Z]{2,3})\s+(.+?)\s+([\d,]+\.\d{2})', 'hsbc_compact_date'),
+            (r'([A-Z]{2,3})\s+([A-Z\s]+)\s+([\d,]+\.\d{2})\s*([D]?)$', 'hsbc_type_first')
         ]
         
         transaction_count = 0
@@ -129,6 +133,21 @@ class SimplePDFProcessor:
                             # Use a default date or extract from context
                             date_str = f"01 {month_name[:3]} 24"
                             
+                        elif pattern_type == 'hsbc_compact_date':
+                            # HSBC compact date: 07Dec24 ATM DESCRIPTION 40.00
+                            date_str = match.group(1)
+                            type_code = match.group(2)
+                            description = f"{type_code} {match.group(3).strip()}"
+                            amount_str = match.group(4)
+                            
+                        elif pattern_type == 'hsbc_type_first':
+                            # Type first format: ATM DESCRIPTION 40.00 D
+                            type_code = match.group(1)
+                            description = f"{type_code} {match.group(2).strip()}"
+                            amount_str = match.group(3)
+                            # Use default date
+                            date_str = f"01 {month_name[:3]} 24"
+                            
                         else:
                             # Generic formats
                             date_str = match.group(1)
@@ -139,7 +158,8 @@ class SimplePDFProcessor:
                         formatted_date = None
                         date_formats = [
                             "%d %b %y", "%d %b %Y", "%d/%m/%Y", "%d-%m-%Y",
-                            "%d/%m/%y", "%d-%m-%y", "%d %b", "%Y-%m-%d"
+                            "%d/%m/%y", "%d-%m-%y", "%d %b", "%Y-%m-%d",
+                            "%d%b%y", "%d%b%Y"  # Compact formats like "07Dec24"
                         ]
                         
                         for fmt in date_formats:

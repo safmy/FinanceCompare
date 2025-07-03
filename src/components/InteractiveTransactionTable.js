@@ -188,7 +188,15 @@ const InteractiveTransactionTable = ({ transactions, onClose, onUpdateTransactio
               {sortedTransactions.map((transaction) => (
                 <tr key={transaction.id} className="border-b hover:bg-gray-50">
                   <td className="px-6 py-4">
-                    {format(new Date(transaction.date), 'dd MMM yyyy')}
+                    {transaction.date ? (
+                      (() => {
+                        try {
+                          return format(new Date(transaction.date), 'dd MMM yyyy');
+                        } catch (e) {
+                          return transaction.date;
+                        }
+                      })()
+                    ) : 'No date'}
                   </td>
                   <td className="px-6 py-4">{transaction.description}</td>
                   <td className="px-6 py-4">
