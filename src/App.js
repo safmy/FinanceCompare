@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import CategoryCard from './components/CategoryCard';
 import InteractiveTransactionTable from './components/InteractiveTransactionTable';
+import CategoryManager from './components/CategoryManager';
 import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
 import DataUpload from './components/DataUpload';
@@ -12,6 +13,7 @@ import { Calendar, TrendingUp, DollarSign, Upload } from 'lucide-react';
 function App() {
   const [transactions, setTransactions] = useState(sampleTransactions);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState('all');
 
@@ -66,6 +68,34 @@ function App() {
 
   const handleDataUpload = (newTransactions) => {
     setTransactions(newTransactions);
+  };
+
+  const handleCategoryUpdate = (update) => {
+    switch (update.type) {
+      case 'merge':
+        // Update all transactions with the source category to the target category
+        setTransactions(prev => prev.map(t => 
+          t.category === update.source ? { ...t, category: update.target } : t
+        ));
+        break;
+      case 'rename':
+        // Rename category for all matching transactions
+        setTransactions(prev => prev.map(t => 
+          t.category === update.oldName ? { ...t, category: update.newName } : t
+        ));
+        break;
+      case 'delete':
+        // Move deleted category transactions to "Other"
+        setTransactions(prev => prev.map(t => 
+          t.category === update.name ? { ...t, category: 'Other' } : t
+        ));
+        break;
+      case 'create':
+        // New category created, no transaction updates needed
+        break;
+      default:
+        break;
+    }
   };
 
   return (
@@ -196,7 +226,15 @@ function App() {
 
               {/* Category Cards */}
               <div className="lg:col-span-2">
-                <h2 className="text-xl font-bold mb-4">Categories (Click to see transactions)</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Categories (Click to see transactions)</h2>
+                  <button
+                    onClick={() => setShowCategoryManager(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Manage Categories
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {Object.entries(spendingByCategory)
                     .sort(([, a], [, b]) => b.amount - a.amount)
@@ -244,6 +282,15 @@ function App() {
               t.id === id ? { ...t, category: newCategory } : t
             ));
           }}
+        />
+      )}
+
+      {/* Category Manager Modal */}
+      {showCategoryManager && (
+        <CategoryManager
+          transactions={filteredTransactions}
+          onClose={() => setShowCategoryManager(false)}
+          onUpdateCategories={handleCategoryUpdate}
         />
       )}
     </div>
