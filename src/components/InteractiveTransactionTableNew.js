@@ -129,6 +129,13 @@ const InteractiveTransactionTableNew = ({ transactions, onClose, onUpdateTransac
                   transaction={transaction}
                   onDragStart={handleDragStart}
                   isDragging={draggedTransaction?.id === transaction.id}
+                  onToggleAmount={(trans) => {
+                    // Toggle amount sign and update category
+                    const newAmount = -trans.amount;
+                    const newCategory = newAmount > 0 ? 'Income' : trans.category === 'Income' ? 'Other' : trans.category;
+                    onUpdateTransaction(trans.id, newCategory, newAmount);
+                  }}
+                  onUpdateTransaction={onUpdateTransaction}
                 />
               ))}
             </tbody>
@@ -158,7 +165,7 @@ const InteractiveTransactionTableNew = ({ transactions, onClose, onUpdateTransac
 };
 
 // Draggable Transaction Row Component
-const DraggableTransactionRow = ({ transaction, onDragStart, isDragging }) => {
+const DraggableTransactionRow = ({ transaction, onDragStart, isDragging, onToggleAmount, onUpdateTransaction }) => {
   const [isLongPress, setIsLongPress] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState(null);
 
@@ -199,6 +206,13 @@ const DraggableTransactionRow = ({ transaction, onDragStart, isDragging }) => {
     setIsLongPress(false);
   };
 
+  const handleAmountClick = (e) => {
+    e.stopPropagation();
+    if (!isLongPress) {
+      onToggleAmount(transaction);
+    }
+  };
+
   return (
     <tr
       className={`border-b hover:bg-gray-50 cursor-move transition-all ${
@@ -228,7 +242,11 @@ const DraggableTransactionRow = ({ transaction, onDragStart, isDragging }) => {
         </div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
-        <span className={transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+        <span 
+          className={`${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'} cursor-pointer hover:bg-gray-100 px-2 py-1 rounded transition-colors`}
+          onClick={handleAmountClick}
+          title="Click to toggle between income/expense"
+        >
           {transaction.amount < 0 ? '-' : '+'}£{Math.abs(transaction.amount).toFixed(2)}
         </span>
       </td>

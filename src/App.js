@@ -109,7 +109,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.4.0 - Drag & Drop + Import/Export</p>
+              <p className="text-xs text-gray-500 mt-1">v1.4.1 - Click Amount to Toggle Income/Expense</p>
             </div>
             <select
               value={dateRange}
@@ -341,10 +341,14 @@ function App() {
         <InteractiveTransactionTable
           transactions={spendingByCategory[selectedCategory].transactions}
           onClose={() => setSelectedCategory(null)}
-          onUpdateTransaction={(id, newCategory) => {
+          onUpdateTransaction={(id, newCategory, newAmount) => {
             // Update the transaction in the main state
             setTransactions(prev => prev.map(t => 
-              t.id === id ? { ...t, category: newCategory } : t
+              t.id === id ? { 
+                ...t, 
+                category: newCategory,
+                amount: newAmount !== undefined ? newAmount : t.amount
+              } : t
             ));
           }}
           onDragStart={setDraggedTransaction}
