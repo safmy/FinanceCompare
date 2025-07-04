@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ChevronUp, ChevronDown, Edit2, Check, X } from 'lucide-react';
+import DraggableTransaction from './DraggableTransaction';
 
-const InteractiveTransactionTable = ({ transactions, onClose, onUpdateTransaction }) => {
+const InteractiveTransactionTable = ({ transactions, onClose, onUpdateTransaction, onDragStart }) => {
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedMonth, setSelectedMonth] = useState('all');

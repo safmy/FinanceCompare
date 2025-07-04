@@ -7,6 +7,7 @@ const PDFUpload = ({ onDataUpload }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [processingResults, setProcessingResults] = useState(null);
+  const [jsFile, setJsFile] = useState(null);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -16,9 +17,18 @@ const PDFUpload = ({ onDataUpload }) => {
   const handleFileSelect = (event) => {
     const selectedFiles = Array.from(event.target.files);
     const pdfFiles = selectedFiles.filter(file => file.type === 'application/pdf');
+    const jsFiles = selectedFiles.filter(file => file.name.endsWith('.js'));
+    
+    if (jsFiles.length > 0) {
+      // Handle JS file upload
+      setJsFile(jsFiles[0]);
+      setFiles([]);
+      setError('');
+      return;
+    }
     
     if (pdfFiles.length !== selectedFiles.length) {
-      setError('Please select only PDF files');
+      setError('Please select only PDF or JS files');
       return;
     }
 
@@ -60,7 +70,47 @@ const PDFUpload = ({ onDataUpload }) => {
     setFiles(updatedFiles);
   };
 
+  const handleJsFileUpload = async () => {
+    if (!jsFile) return;
+    
+    setUploading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const content = await jsFile.text();
+      
+      // Parse the JS file to extract transactions
+      const transactionMatch = content.match(/export\s+const\s+transactions\s*=\s*(\[.*\]);/s);
+      if (!transactionMatch) {
+        throw new Error('Invalid JavaScript file format');
+      }
+      
+      // Evaluate the transactions array safely
+      const transactionsData = eval(transactionMatch[1]);
+      
+      setSuccess(`Successfully loaded ${transactionsData.length} transactions from JavaScript file`);
+      
+      // Pass transactions to parent component
+      if (onDataUpload) {
+        onDataUpload(transactionsData);
+      }
+      
+      // Clear the file
+      setJsFile(null);
+      
+    } catch (err) {
+      setError(err.message || 'Failed to load JavaScript file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleUpload = async () => {
+    if (jsFile) {
+      return handleJsFileUpload();
+    }
+    
     if (files.length === 0) {
       setError('Please select at least one PDF file');
       return;
@@ -133,7 +183,7 @@ const PDFUpload = ({ onDataUpload }) => {
         
         <input
           type="file"
-          accept=".pdf"
+          accept=".pdf,.js"
           multiple
           onChange={handleFileSelect}
           className="hidden"
@@ -153,9 +203,51 @@ const PDFUpload = ({ onDataUpload }) => {
         </label>
         
         <p className="mt-4 text-sm text-gray-500">
-          Supports multiple PDF files at once
+          Supports multiple PDF files or a single JS transactions file
         </p>
       </div>
+
+      {/* Selected JS File */}
+      {jsFile && (
+        <div className="mt-6">
+          <h3 className="font-semibold mb-3">Selected JavaScript File:</h3>
+          <div className="flex items-center justify-between bg-gray-50 p-3 rounded">
+            <div className="flex items-center space-x-3">
+              <FileText className="w-5 h-5 text-gray-500" />
+              <span className="text-sm">{jsFile.name}</span>
+            </div>
+            <button
+              onClick={() => setJsFile(null)}
+              className="text-red-500 hover:text-red-700"
+              disabled={uploading}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <button
+            onClick={handleUpload}
+            disabled={uploading}
+            className={`mt-4 w-full py-3 ${
+              uploading 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700'
+            } text-white rounded-lg transition-colors flex items-center justify-center`}
+          >
+            {uploading ? (
+              <>
+                <Loader className="w-5 h-5 mr-2 animate-spin" />
+                Loading JavaScript file...
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5 mr-2" />
+                Load Transactions
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Selected Files */}
       {files.length > 0 && (

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import CategoryCard from './components/CategoryCard';
-import InteractiveTransactionTable from './components/InteractiveTransactionTable';
+import DroppableCategoryCard from './components/DroppableCategoryCard';
+import InteractiveTransactionTable from './components/InteractiveTransactionTableNew';
 import CategoryManager from './components/CategoryManager';
 import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
 import DataUpload from './components/DataUpload';
 import PDFUpload from './components/PDFUpload';
-import { transactions as sampleTransactions, categoryColors } from './data/currentAccountData';
+import ExportTransactions from './components/ExportTransactions';
+import { transactions as sampleTransactions, categoryColors as defaultColors } from './data/currentAccountData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Calendar, TrendingUp, DollarSign, Upload } from 'lucide-react';
 
@@ -16,6 +17,8 @@ function App() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState('all');
+  const [draggedTransaction, setDraggedTransaction] = useState(null);
+  const [categoryColors, setCategoryColors] = useState(defaultColors);
 
   // Filter transactions by date range
   const filteredTransactions = dateRange === 'all' 
@@ -106,7 +109,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.3.5 - Fixed Multi-line Transaction Parsing</p>
+              <p className="text-xs text-gray-500 mt-1">v1.4.0 - Drag & Drop + Import/Export</p>
             </div>
             <select
               value={dateRange}
@@ -126,7 +129,7 @@ function App() {
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
-            {['overview', 'trends', 'budget', 'upload'].map((tab) => (
+            {['overview', 'trends', 'budget', 'upload', 'export'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -242,7 +245,7 @@ function App() {
                   {Object.entries(spendingByCategory)
                     .sort(([, a], [, b]) => b.amount - a.amount)
                     .map(([category, data]) => (
-                      <CategoryCard
+                      <DroppableCategoryCard
                         key={category}
                         category={category}
                         amount={data.amount}
@@ -250,8 +253,29 @@ function App() {
                         color={categoryColors[category] || '#9CA3AF'}
                         transactionCount={data.count}
                         onClick={() => setSelectedCategory(category)}
+                        onDrop={(targetCategory) => {
+                          if (draggedTransaction) {
+                            setTransactions(prev => prev.map(t => 
+                              t.id === draggedTransaction.id ? { ...t, category: targetCategory } : t
+                            ));
+                            setDraggedTransaction(null);
+                          }
+                        }}
                       />
                     ))}
+                  {/* Add Create New Category Card */}
+                  <DroppableCategoryCard
+                    isCreateNew={true}
+                    onCreateCategory={(name, color) => {
+                      setCategoryColors(prev => ({ ...prev, [name]: color }));
+                      if (draggedTransaction) {
+                        setTransactions(prev => prev.map(t => 
+                          t.id === draggedTransaction.id ? { ...t, category: name } : t
+                        ));
+                        setDraggedTransaction(null);
+                      }
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -272,6 +296,44 @@ function App() {
             <DataUpload onDataUpload={handleDataUpload} />
           </div>
         )}
+
+        {activeTab === 'export' && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-bold mb-4">Export Transactions</h2>
+            <p className="text-gray-600 mb-6">
+              Export your categorized transactions to save your work and re-import later.
+            </p>
+            
+            <div className="mb-6">
+              <h3 className="font-semibold mb-2">Summary:</h3>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-gray-600">Total Transactions</p>
+                  <p className="text-xl font-bold">{filteredTransactions.length}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-gray-600">Categories</p>
+                  <p className="text-xl font-bold">{Object.keys(spendingByCategory).length}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-gray-600">Date Range</p>
+                  <p className="text-xl font-bold">{dateRange === 'all' ? 'All Time' : dateRange}</p>
+                </div>
+              </div>
+            </div>
+            
+            <ExportTransactions transactions={filteredTransactions} />
+            
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+              <h3 className="font-semibold mb-2">How to use exported files:</h3>
+              <ul className="text-sm text-gray-700 space-y-1">
+                <li>• <strong>JS File:</strong> Can be re-imported in the Upload tab to restore your categorized transactions</li>
+                <li>• <strong>CSV File:</strong> Can be opened in Excel, Google Sheets, or any spreadsheet application</li>
+                <li>• Your categories and changes are preserved in the export</li>
+              </ul>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Transaction Modal */}
@@ -285,6 +347,7 @@ function App() {
               t.id === id ? { ...t, category: newCategory } : t
             ));
           }}
+          onDragStart={setDraggedTransaction}
         />
       )}
 
