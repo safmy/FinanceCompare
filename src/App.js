@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import DroppableCategoryCard from './components/DroppableCategoryCard';
-import InteractiveTransactionTable from './components/InteractiveTransactionTableNew';
+import InteractiveTransactionTable from './components/InteractiveTransactionTableDnD';
 import CategoryManager from './components/CategoryManager';
 import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
@@ -109,7 +109,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.4.1 - Click Amount to Toggle Income/Expense</p>
+              <p className="text-xs text-gray-500 mt-1">v1.4.2 - Fixed Drag & Drop with Category Selection</p>
             </div>
             <select
               value={dateRange}
@@ -352,6 +352,8 @@ function App() {
             ));
           }}
           onDragStart={setDraggedTransaction}
+          availableCategories={Object.keys(categoryColors)}
+          categoryColors={categoryColors}
         />
       )}
 
