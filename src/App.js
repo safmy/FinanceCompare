@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import DroppableCategoryCard from './components/DroppableCategoryCard';
-import InteractiveTransactionTable from './components/InteractiveTransactionTableDnD';
+import InteractiveTransactionTable from './components/InteractiveTransactionTableSimple';
 import CategoryManager from './components/CategoryManager';
 import MonthlyTrends from './components/MonthlyTrends';
 import BudgetAnalysis from './components/BudgetAnalysis';
@@ -109,7 +109,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.4.2 - Fixed Drag & Drop with Category Selection</p>
+              <p className="text-xs text-gray-500 mt-1">v1.4.3 - Click-Based Category Selection</p>
             </div>
             <select
               value={dateRange}
@@ -337,7 +337,7 @@ function App() {
       </main>
 
       {/* Transaction Modal */}
-      {selectedCategory && (
+      {selectedCategory && spendingByCategory[selectedCategory] && (
         <InteractiveTransactionTable
           transactions={spendingByCategory[selectedCategory].transactions}
           onClose={() => setSelectedCategory(null)}
@@ -350,8 +350,15 @@ function App() {
                 amount: newAmount !== undefined ? newAmount : t.amount
               } : t
             ));
+            
+            // Close modal if all transactions moved out of current category
+            if (spendingByCategory[selectedCategory]?.transactions.length === 1) {
+              const lastTransaction = spendingByCategory[selectedCategory].transactions.find(t => t.id === id);
+              if (lastTransaction && lastTransaction.category !== newCategory) {
+                setSelectedCategory(null);
+              }
+            }
           }}
-          onDragStart={setDraggedTransaction}
           availableCategories={Object.keys(categoryColors)}
           categoryColors={categoryColors}
         />
