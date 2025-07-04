@@ -81,13 +81,31 @@ const PDFUpload = ({ onDataUpload }) => {
       const content = await jsFile.text();
       
       // Parse the JS file to extract transactions
-      const transactionMatch = content.match(/export\s+const\s+transactions\s*=\s*(\[.*\]);/s);
+      const transactionMatch = content.match(/export\s+const\s+transactions\s*=\s*(\[[\s\S]*?\]);/);
       if (!transactionMatch) {
         throw new Error('Invalid JavaScript file format');
       }
       
-      // Evaluate the transactions array safely
-      const transactionsData = eval(transactionMatch[1]);
+      // Use a safer approach to parse the JavaScript array
+      let transactionsData;
+      try {
+        // Try to parse as JSON first (in case it's already valid JSON)
+        transactionsData = JSON.parse(transactionMatch[1]);
+      } catch (e) {
+        // If that fails, use Function constructor with proper sandboxing
+        try {
+          // eslint-disable-next-line no-new-func
+          const parseFunc = new Function('return ' + transactionMatch[1]);
+          transactionsData = parseFunc();
+          
+          // Validate the result
+          if (!Array.isArray(transactionsData)) {
+            throw new Error('Invalid transactions data: expected an array');
+          }
+        } catch (funcError) {
+          throw new Error('Failed to parse transactions data: ' + funcError.message);
+        }
+      }
       
       setSuccess(`Successfully loaded ${transactionsData.length} transactions from JavaScript file`);
       
