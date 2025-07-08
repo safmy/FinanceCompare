@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TrendingUp, Plus } from 'lucide-react';
+import AICategorizeButton from './AICategorizeButton';
 
 const DroppableCategoryCard = ({ 
   category, 
@@ -10,7 +11,9 @@ const DroppableCategoryCard = ({
   onClick, 
   onDrop,
   isCreateNew = false,
-  onCreateCategory
+  onCreateCategory,
+  transactions = [],
+  onRecategorize
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -176,6 +179,16 @@ const DroppableCategoryCard = ({
         <div className="mt-3 text-xs text-blue-600 font-medium">
           Drop here to categorize
         </div>
+      )}
+      
+      {category === 'Other' && transactionCount > 1 && onRecategorize && (
+        <AICategorizeButton
+          category={category}
+          transactionCount={transactionCount}
+          transactions={transactions}
+          onRecategorize={onRecategorize}
+          categoryColors={{ [category]: color }}
+        />
       )}
     </div>
   );

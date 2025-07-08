@@ -73,6 +73,20 @@ function App() {
     setTransactions(newTransactions);
   };
 
+  const handleRecategorize = (recategorizations) => {
+    // Apply recategorizations to transactions
+    setTransactions(prev => {
+      const updated = [...prev];
+      recategorizations.forEach(recat => {
+        const idx = updated.findIndex(t => t.id === recat.id);
+        if (idx !== -1) {
+          updated[idx] = { ...updated[idx], category: recat.newCategory };
+        }
+      });
+      return updated;
+    });
+  };
+
   const handleCategoryUpdate = (update) => {
     switch (update.type) {
       case 'merge':
@@ -109,7 +123,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.4.3 - Click-Based Category Selection</p>
+              <p className="text-xs text-gray-500 mt-1">v1.5.0 - Grid Categories & AI Re-categorization</p>
             </div>
             <select
               value={dateRange}
@@ -252,6 +266,7 @@ function App() {
                         percentage={((data.amount / totalSpending) * 100).toFixed(1)}
                         color={categoryColors[category] || '#9CA3AF'}
                         transactionCount={data.count}
+                        transactions={data.transactions}
                         onClick={() => setSelectedCategory(category)}
                         onDrop={(targetCategory) => {
                           if (draggedTransaction) {
@@ -261,6 +276,7 @@ function App() {
                             setDraggedTransaction(null);
                           }
                         }}
+                        onRecategorize={handleRecategorize}
                       />
                     ))}
                   {/* Add Create New Category Card */}

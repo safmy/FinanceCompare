@@ -12,22 +12,27 @@ from datetime import datetime
 import tempfile
 import base64
 try:
-    # Try multiline processor first
-    from multiline_pdf_processor import MultilinePDFProcessor as PDFProcessor
-    print("Using multiline PDF processor")
+    # Try improved multiline processor first
+    from improved_multiline_processor import ImprovedMultilineProcessor as PDFProcessor
+    print("Using improved multiline PDF processor")
 except ImportError:
     try:
-        # Fallback to corrected processor
-        from corrected_pdf_processor import CorrectedPDFProcessor as PDFProcessor
-        print("Using corrected PDF processor")
+        # Fallback to multiline processor
+        from multiline_pdf_processor import MultilinePDFProcessor as PDFProcessor
+        print("Using multiline PDF processor")
     except ImportError:
         try:
-            # Fallback to enhanced processor
-            from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
-            print("Using enhanced PDF processor")
-        except ImportError as e:
-            print(f"Error importing PDF processors: {e}")
-            PDFProcessor = None
+            # Fallback to corrected processor
+            from corrected_pdf_processor import CorrectedPDFProcessor as PDFProcessor
+            print("Using corrected PDF processor")
+        except ImportError:
+            try:
+                # Fallback to enhanced processor
+                from enhanced_pdf_processor import EnhancedPDFProcessor as PDFProcessor
+                print("Using enhanced PDF processor")
+            except ImportError as e:
+                print(f"Error importing PDF processors: {e}")
+                PDFProcessor = None
 
 app = Flask(__name__)
 CORS(app)
@@ -327,6 +332,51 @@ def merge_categories():
         return jsonify({
             'success': True,
             'merged': f"{source_category} -> {target_category}"
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recategorize', methods=['POST'])
+def recategorize_category():
+    """Re-categorize all transactions in a specific category using AI"""
+    try:
+        data = request.get_json()
+        category_name = data.get('category')
+        transactions = data.get('transactions', [])
+        
+        if not transactions:
+            return jsonify({'recategorized': []})
+        
+        # Filter transactions for the specified category
+        category_transactions = [t for t in transactions if t.get('category') == category_name]
+        
+        if not category_transactions:
+            return jsonify({'recategorized': []})
+        
+        print(f"Re-categorizing {len(category_transactions)} transactions from '{category_name}'")
+        
+        # Use OpenAI to recategorize these specific transactions
+        categorized = categorize_with_openai(category_transactions)
+        
+        # Apply the new categories
+        recategorized = []
+        for i, trans in enumerate(category_transactions):
+            if i < len(categorized):
+                new_category = categorized[i].get('category', 'Other')
+                # Only update if the category is different and not 'Other'
+                if new_category != category_name and new_category != 'Other':
+                    recategorized.append({
+                        'id': trans['id'],
+                        'oldCategory': category_name,
+                        'newCategory': new_category,
+                        'description': trans['description']
+                    })
+        
+        return jsonify({
+            'recategorized': recategorized,
+            'total': len(category_transactions),
+            'updated': len(recategorized)
         })
         
     except Exception as e:

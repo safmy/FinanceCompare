@@ -209,27 +209,29 @@ const InteractiveTransactionTableSimple = ({
                       </button>
                       
                       {editingCategoryId === transaction.id && (
-                        <div className="absolute z-20 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 max-h-64 overflow-y-auto category-dropdown">
-                          {availableCategories.map(category => (
-                            <button
-                              key={category}
-                              className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors flex items-center justify-between ${
-                                category === transaction.category ? 'bg-blue-50' : ''
-                              }`}
-                              onClick={() => handleCategorySelect(transaction.id, category)}
-                            >
-                              <span className="flex items-center">
-                                <span
-                                  className="w-3 h-3 rounded-full mr-2"
-                                  style={{ backgroundColor: categoryColors[category] }}
-                                />
+                        <div className="absolute z-20 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 category-grid-dropdown" style={{ minWidth: '600px', right: '0' }}>
+                          <div className="grid grid-cols-3 gap-2">
+                            {availableCategories.map(category => (
+                              <button
+                                key={category}
+                                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all hover:scale-105 flex items-center justify-center ${
+                                  category === transaction.category 
+                                    ? 'ring-2 ring-blue-500' 
+                                    : 'hover:ring-2 hover:ring-gray-300'
+                                }`}
+                                style={{
+                                  backgroundColor: `${categoryColors[category]}20`,
+                                  color: categoryColors[category]
+                                }}
+                                onClick={() => handleCategorySelect(transaction.id, category)}
+                              >
                                 {category}
-                              </span>
-                              {category === transaction.category && (
-                                <Check className="w-4 h-4 text-blue-600" />
-                              )}
-                            </button>
-                          ))}
+                                {category === transaction.category && (
+                                  <Check className="w-4 h-4 ml-2" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
