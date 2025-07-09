@@ -79,7 +79,6 @@ function App() {
 
   // Calculate summary statistics
   const transactionCount = filteredTransactions.length;
-  const avgTransactionAmount = totalSpending / (transactionCount || 1);
 
   const handleDataUpload = (newTransactions) => {
     // Extract unique categories from new transactions
