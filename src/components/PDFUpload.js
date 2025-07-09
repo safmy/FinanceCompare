@@ -153,10 +153,17 @@ const PDFUpload = ({ onDataUpload }) => {
         body: formData
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse response:', jsonError);
+        throw new Error('Server returned invalid response. Please check if the API is running.');
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to process PDFs');
+        console.error('API Error:', response.status, data);
+        throw new Error(data.error || `Failed to process PDFs (Error ${response.status})`);
       }
 
       setProcessingResults(data);
@@ -168,7 +175,12 @@ const PDFUpload = ({ onDataUpload }) => {
       }
 
     } catch (err) {
-      setError(err.message || 'Failed to process PDFs');
+      console.error('PDF Upload Error:', err);
+      if (err.message.includes('Failed to fetch')) {
+        setError('Unable to connect to the server. Please check if the API is running.');
+      } else {
+        setError(err.message || 'Failed to process PDFs');
+      }
     } finally {
       setUploading(false);
     }
