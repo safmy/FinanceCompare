@@ -1,10 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { categoryColors } from '../data/sampleData';
+import { X } from 'lucide-react';
 
-const MonthlyTrends = ({ transactions }) => {
+const MonthlyTrends = ({ transactions, categoryColors = {} }) => {
+  const categories = [...new Set(transactions.map(t => t.category))];
+  const [selectedCategories, setSelectedCategories] = useState(categories);
+  const [showCategorySelector, setShowCategorySelector] = useState(false);
+  // Filter transactions by selected categories
+  const filteredTransactions = selectedCategories.length === categories.length 
+    ? transactions 
+    : transactions.filter(t => selectedCategories.includes(t.category));
+  
   // Process data for monthly spending by category
-  const monthlyData = transactions.reduce((acc, transaction) => {
+  const monthlyData = filteredTransactions.reduce((acc, transaction) => {
     const month = transaction.month;
     if (!acc[month]) {
       acc[month] = { month, total: 0 };
@@ -22,11 +30,77 @@ const MonthlyTrends = ({ transactions }) => {
   }, {});
 
   const chartData = Object.values(monthlyData);
-  const categories = [...new Set(transactions.map(t => t.category))];
+  
+  const toggleCategory = (category) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(category)) {
+        return prev.filter(c => c !== category);
+      } else {
+        return [...prev, category];
+      }
+    });
+  };
+  
+  const selectAllCategories = () => {
+    setSelectedCategories(categories);
+  };
+  
+  const deselectAllCategories = () => {
+    setSelectedCategories([]);
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold mb-6">Monthly Spending Trends</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Monthly Spending Trends</h2>
+        <button
+          onClick={() => setShowCategorySelector(!showCategorySelector)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+        >
+          {showCategorySelector ? 'Hide' : 'Select'} Categories ({selectedCategories.length}/{categories.length})
+        </button>
+      </div>
+      
+      {/* Category Selector */}
+      {showCategorySelector && (
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold">Select Categories to Display</h3>
+            <div className="space-x-2">
+              <button
+                onClick={selectAllCategories}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Select All
+              </button>
+              <button
+                onClick={deselectAllCategories}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Deselect All
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {categories.map(category => (
+              <button
+                key={category}
+                onClick={() => toggleCategory(category)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  selectedCategories.includes(category)
+                    ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+                style={{
+                  borderLeft: `4px solid ${categoryColors[category] || '#9CA3AF'}`
+                }}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Total Spending Trend */}
@@ -59,7 +133,7 @@ const MonthlyTrends = ({ transactions }) => {
               <YAxis />
               <Tooltip formatter={(value) => `£${value.toFixed(2)}`} />
               <Legend />
-              {categories.slice(0, 5).map((category) => (
+              {selectedCategories.slice(0, 8).map((category) => (
                 <Bar 
                   key={category}
                   dataKey={category} 
@@ -87,7 +161,7 @@ const MonthlyTrends = ({ transactions }) => {
             </thead>
             <tbody>
               {chartData.map((monthData) => {
-                const monthTransactions = transactions.filter(t => t.month === monthData.month);
+                const monthTransactions = filteredTransactions.filter(t => t.month === monthData.month);
                 const avgTransaction = monthData.total / monthTransactions.length;
                 
                 return (

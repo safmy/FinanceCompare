@@ -201,7 +201,7 @@ const PDFUpload = ({ onDataUpload }) => {
         
         <input
           type="file"
-          accept=".pdf,.js"
+          accept=".pdf,.js,application/javascript,text/javascript,application/x-javascript"
           multiple
           onChange={handleFileSelect}
           className="hidden"

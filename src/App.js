@@ -9,7 +9,7 @@ import PDFUpload from './components/PDFUpload';
 import ExportTransactions from './components/ExportTransactions';
 import { transactions as sampleTransactions, categoryColors as defaultColors } from './data/currentAccountData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Calendar, TrendingUp, DollarSign, Upload } from 'lucide-react';
+import { Calendar, TrendingUp, DollarSign, Upload, Search } from 'lucide-react';
 
 function App() {
   const [transactions, setTransactions] = useState(sampleTransactions);
@@ -19,6 +19,7 @@ function App() {
   const [dateRange, setDateRange] = useState('all');
   const [draggedTransaction, setDraggedTransaction] = useState(null);
   const [categoryColors, setCategoryColors] = useState(defaultColors);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Filter transactions by date range
   const filteredTransactions = dateRange === 'all' 
@@ -51,6 +52,17 @@ function App() {
     return acc;
   }, {});
 
+  // Calculate income, expenses, and net separately
+  const income = filteredTransactions
+    .filter(t => t.amount > 0)
+    .reduce((sum, t) => sum + t.amount, 0);
+  
+  const expenses = filteredTransactions
+    .filter(t => t.amount < 0)
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  
+  const netAmount = income - expenses;
+  
   const totalSpending = Object.values(spendingByCategory).reduce(
     (sum, cat) => sum + cat.amount, 
     0
@@ -70,6 +82,20 @@ function App() {
   const avgTransactionAmount = totalSpending / (transactionCount || 1);
 
   const handleDataUpload = (newTransactions) => {
+    // Extract unique categories from new transactions
+    const newCategories = [...new Set(newTransactions.map(t => t.category))];
+    
+    // Add any new categories that don't exist in current categoryColors
+    const updatedColors = { ...categoryColors };
+    newCategories.forEach(category => {
+      if (!updatedColors[category]) {
+        // Generate a random color for new categories
+        const colors = ['#10b981', '#dc2626', '#7c3aed', '#f59e0b', '#ec4899', '#3b82f6', '#6366f1', '#a855f7'];
+        updatedColors[category] = colors[Math.floor(Math.random() * colors.length)];
+      }
+    });
+    
+    setCategoryColors(updatedColors);
     setTransactions(newTransactions);
   };
 
@@ -123,7 +149,7 @@ function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Personal Finance Dashboard</h1>
-              <p className="text-xs text-gray-500 mt-1">v1.4.4 - 3-Column Grid Category Selection</p>
+              <p className="text-xs text-gray-500 mt-1">v1.5.0 - Enhanced Search, Income/Expense Tracking & Category Controls</p>
             </div>
             <select
               value={dateRange}
@@ -168,21 +194,33 @@ function App() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Spending</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      £{totalSpending.toFixed(2)}
+                    <p className="text-sm text-gray-600">Income</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      +£{income.toFixed(2)}
                     </p>
                   </div>
-                  <DollarSign className="w-8 h-8 text-gray-400" />
+                  <TrendingUp className="w-8 h-8 text-green-400" />
                 </div>
               </div>
               
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Transactions</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {transactionCount}
+                    <p className="text-sm text-gray-600">Expenses</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      -£{expenses.toFixed(2)}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-red-400" />
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Net Balance</p>
+                    <p className={`text-2xl font-bold ${netAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {netAmount >= 0 ? '+' : ''}£{netAmount.toFixed(2)}
                     </p>
                   </div>
                   <Calendar className="w-8 h-8 text-gray-400" />
@@ -192,21 +230,9 @@ function App() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Avg Transaction</p>
+                    <p className="text-sm text-gray-600">Transactions</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      £{avgTransactionAmount.toFixed(2)}
-                    </p>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-gray-400" />
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Categories</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {Object.keys(spendingByCategory).length}
+                      {transactionCount}
                     </p>
                   </div>
                   <Upload className="w-8 h-8 text-gray-400" />
@@ -255,8 +281,32 @@ function App() {
                     Manage Categories
                   </button>
                 </div>
+                
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      placeholder="Search categories or transactions..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {Object.entries(spendingByCategory)
+                    .filter(([category, data]) => {
+                      if (!searchTerm) return true;
+                      const searchLower = searchTerm.toLowerCase();
+                      // Search in category name
+                      if (category.toLowerCase().includes(searchLower)) return true;
+                      // Search in transaction descriptions
+                      return data.transactions.some(t => 
+                        t.description.toLowerCase().includes(searchLower)
+                      );
+                    })
                     .sort(([, a], [, b]) => b.amount - a.amount)
                     .map(([category, data]) => (
                       <DroppableCategoryCard
@@ -299,7 +349,7 @@ function App() {
         )}
 
         {activeTab === 'trends' && (
-          <MonthlyTrends transactions={filteredTransactions} />
+          <MonthlyTrends transactions={filteredTransactions} categoryColors={categoryColors} />
         )}
 
         {activeTab === 'budget' && (
