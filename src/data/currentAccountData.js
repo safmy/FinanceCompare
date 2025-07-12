@@ -1581,5 +1581,14 @@ export const categoryColors = {
   'Food & Dining': '#FF6B6B',
   'Fitness': '#84CC16',
   'Phone': '#A855F7',
+  'Insurance': '#be123c',
+  'Charity': '#7c2d12',
+  'Gifts': '#166534',
+  'Travel': '#0284c7',
+  'Home & Garden': '#dc2626',
+  'Pets': '#f472b6',
+  'Cash': '#94a3b8',
+  'Savings': '#059669',
+  'Investments': '#7c3aed',
   'Other': '#6b7280'
 };

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Plus, Trash2, Edit2, Check, X, Palette } from 'lucide-react';
 
-const CategoryManager = ({ transactions, onClose, onUpdateCategories }) => {
+const CategoryManager = ({ transactions, categoryColors, onClose, onUpdateCategories }) => {
   const [categories, setCategories] = useState(() => {
     // Extract unique categories from transactions
     const uniqueCategories = [...new Set(transactions.map(t => t.category))];
@@ -13,9 +13,23 @@ const CategoryManager = ({ transactions, onClose, onUpdateCategories }) => {
         name: cat,
         count: catTransactions.length,
         amount: catTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0),
-        color: getCategoryColor(cat)
+        color: categoryColors?.[cat] || getCategoryColor(cat)
       };
     });
+    
+    // Also include any categories from categoryColors that might not have transactions yet
+    if (categoryColors) {
+      Object.entries(categoryColors).forEach(([cat, color]) => {
+        if (!categoryData[cat]) {
+          categoryData[cat] = {
+            name: cat,
+            count: 0,
+            amount: 0,
+            color: color
+          };
+        }
+      });
+    }
     
     return categoryData;
   });

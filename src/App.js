@@ -82,20 +82,37 @@ function App() {
 
   const handleDataUpload = (newTransactions) => {
     // Extract unique categories from new transactions
-    const newCategories = [...new Set(newTransactions.map(t => t.category))];
+    const newCategories = [...new Set(newTransactions.map(t => t.category).filter(Boolean))];
+    
+    // Create a diverse color palette for new categories
+    const colorPalette = [
+      '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+      '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+      '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+      '#ec4899', '#f43f5e', '#be123c', '#7c2d12', '#166534'
+    ];
     
     // Add any new categories that don't exist in current categoryColors
     const updatedColors = { ...categoryColors };
+    let colorIndex = 0;
+    
     newCategories.forEach(category => {
-      if (!updatedColors[category]) {
-        // Generate a random color for new categories
-        const colors = ['#10b981', '#dc2626', '#7c3aed', '#f59e0b', '#ec4899', '#3b82f6', '#6366f1', '#a855f7'];
-        updatedColors[category] = colors[Math.floor(Math.random() * colors.length)];
+      if (!updatedColors[category] && category) {
+        // Assign colors in sequence for better distribution
+        updatedColors[category] = colorPalette[colorIndex % colorPalette.length];
+        colorIndex++;
       }
     });
     
+    console.log('Categories found in uploaded data:', newCategories);
+    console.log('Updated category colors:', updatedColors);
+    
     setCategoryColors(updatedColors);
     setTransactions(newTransactions);
+    
+    // Show success message with category info
+    const categoryCount = Object.keys(updatedColors).length;
+    console.log(`Loaded ${newTransactions.length} transactions with ${newCategories.length} categories (${categoryCount} total categories)`);
   };
 
   const handleRecategorize = (recategorizations) => {
@@ -119,21 +136,43 @@ function App() {
         setTransactions(prev => prev.map(t => 
           t.category === update.source ? { ...t, category: update.target } : t
         ));
+        // Remove the source category color
+        setCategoryColors(prev => {
+          const newColors = { ...prev };
+          delete newColors[update.source];
+          return newColors;
+        });
         break;
       case 'rename':
         // Rename category for all matching transactions
         setTransactions(prev => prev.map(t => 
           t.category === update.oldName ? { ...t, category: update.newName } : t
         ));
+        // Update category color mapping
+        setCategoryColors(prev => {
+          const newColors = { ...prev };
+          if (prev[update.oldName]) {
+            newColors[update.newName] = prev[update.oldName];
+            delete newColors[update.oldName];
+          }
+          return newColors;
+        });
         break;
       case 'delete':
         // Move deleted category transactions to "Other"
         setTransactions(prev => prev.map(t => 
           t.category === update.name ? { ...t, category: 'Other' } : t
         ));
+        // Remove the category color
+        setCategoryColors(prev => {
+          const newColors = { ...prev };
+          delete newColors[update.name];
+          return newColors;
+        });
         break;
       case 'create':
-        // New category created, no transaction updates needed
+        // Add new category color
+        setCategoryColors(prev => ({ ...prev, [update.name]: update.color }));
         break;
       default:
         break;
@@ -332,13 +371,25 @@ function App() {
                   <DroppableCategoryCard
                     isCreateNew={true}
                     onCreateCategory={(name, color) => {
-                      setCategoryColors(prev => ({ ...prev, [name]: color }));
+                      // Add the new category color
+                      setCategoryColors(prev => {
+                        const updated = { ...prev, [name]: color };
+                        console.log('Created new category:', name, 'with color:', color);
+                        return updated;
+                      });
+                      
+                      // If there's a dragged transaction, assign it to the new category
                       if (draggedTransaction) {
                         setTransactions(prev => prev.map(t => 
                           t.id === draggedTransaction.id ? { ...t, category: name } : t
                         ));
                         setDraggedTransaction(null);
                       }
+                      
+                      // Force re-render to show the new category immediately
+                      setTimeout(() => {
+                        setDateRange(prev => prev); // Trigger a state update
+                      }, 100);
                     }}
                   />
                 </div>
@@ -433,6 +484,7 @@ function App() {
       {showCategoryManager && (
         <CategoryManager
           transactions={filteredTransactions}
+          categoryColors={categoryColors}
           onClose={() => setShowCategoryManager(false)}
           onUpdateCategories={handleCategoryUpdate}
         />
