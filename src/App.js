@@ -9,7 +9,8 @@ import PDFUpload from './components/PDFUpload';
 import ExportTransactions from './components/ExportTransactions';
 import { transactions as sampleTransactions, categoryColors as defaultColors } from './data/currentAccountData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Calendar, TrendingUp, DollarSign, Upload, Search } from 'lucide-react';
+import { Calendar, TrendingUp, DollarSign, Upload, Search, RefreshCw } from 'lucide-react';
+import { recategorizeTransactions } from './utils/categorizer';
 
 function App() {
   const [transactions, setTransactions] = useState(sampleTransactions);
@@ -51,6 +52,13 @@ function App() {
     acc[category].transactions.push(transaction);
     return acc;
   }, {});
+  
+  // Ensure all categories from categoryColors are included (even if empty)
+  Object.keys(categoryColors).forEach(cat => {
+    if (!spendingByCategory[cat]) {
+      spendingByCategory[cat] = { amount: 0, count: 0, transactions: [] };
+    }
+  });
 
   // Calculate income, expenses, and net separately
   const income = filteredTransactions
@@ -81,8 +89,11 @@ function App() {
   const transactionCount = filteredTransactions.length;
 
   const handleDataUpload = (newTransactions) => {
+    // First, try to recategorize any 'Other' transactions
+    const categorizedTransactions = recategorizeTransactions(newTransactions);
+    
     // Extract unique categories from new transactions
-    const newCategories = [...new Set(newTransactions.map(t => t.category).filter(Boolean))];
+    const newCategories = [...new Set(categorizedTransactions.map(t => t.category).filter(Boolean))];
     
     // Create a diverse color palette for new categories
     const colorPalette = [
@@ -107,12 +118,22 @@ function App() {
     console.log('Categories found in uploaded data:', newCategories);
     console.log('Updated category colors:', updatedColors);
     
+    // Count how many were recategorized from 'Other'
+    const otherCount = newTransactions.filter(t => t.category === 'Other').length;
+    const recategorizedCount = categorizedTransactions.filter((t, i) => 
+      newTransactions[i].category === 'Other' && t.category !== 'Other'
+    ).length;
+    
+    if (recategorizedCount > 0) {
+      console.log(`Automatically recategorized ${recategorizedCount} of ${otherCount} 'Other' transactions`);
+    }
+    
     setCategoryColors(updatedColors);
-    setTransactions(newTransactions);
+    setTransactions(categorizedTransactions);
     
     // Show success message with category info
     const categoryCount = Object.keys(updatedColors).length;
-    console.log(`Loaded ${newTransactions.length} transactions with ${newCategories.length} categories (${categoryCount} total categories)`);
+    console.log(`Loaded ${categorizedTransactions.length} transactions with ${newCategories.length} categories (${categoryCount} total categories)`);
   };
 
   const handleRecategorize = (recategorizations) => {
@@ -312,12 +333,35 @@ function App() {
               <div className="lg:col-span-2">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold">Categories (Click to see transactions)</h2>
-                  <button
-                    onClick={() => setShowCategoryManager(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    Manage Categories
-                  </button>
+                  <div className="flex space-x-2">
+                    {spendingByCategory['Other'] && spendingByCategory['Other'].count > 0 && (
+                      <button
+                        onClick={() => {
+                          const recategorized = recategorizeTransactions(transactions);
+                          const changeCount = recategorized.filter((t, i) => 
+                            transactions[i].category !== t.category
+                          ).length;
+                          if (changeCount > 0) {
+                            setTransactions(recategorized);
+                            console.log(`Recategorized ${changeCount} transactions`);
+                          } else {
+                            console.log('No transactions needed recategorization');
+                          }
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm flex items-center"
+                        title="Automatically categorize transactions marked as 'Other'"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Auto-categorize Other ({spendingByCategory['Other'].count})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowCategoryManager(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      Manage Categories
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Search Bar */}
