@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ChevronUp, ChevronDown, X, Check } from 'lucide-react';
+import SmartCategorySelector from './SmartCategorySelector';
 import '../styles/animations.css';
 
 const InteractiveTransactionTableSimple = ({ 
@@ -37,7 +38,8 @@ const InteractiveTransactionTableSimple = ({
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedMonth, setSelectedMonth] = useState('all');
-  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [showCategorySelector, setShowCategorySelector] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
 
   const months = ['all', ...new Set(transactions.map(t => t.month))];
 
@@ -62,14 +64,49 @@ const InteractiveTransactionTableSimple = ({
     onUpdateTransaction(transaction.id, newCategory, newAmount);
   };
 
-  const handleCategoryClick = (transactionId) => {
-    setEditingCategoryId(editingCategoryId === transactionId ? null : transactionId);
+  const handleCategoryClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowCategorySelector(true);
   };
 
-  const handleCategorySelect = (transactionId, newCategory) => {
-    onUpdateTransaction(transactionId, newCategory);
-    setEditingCategoryId(null);
+  const handleCategorySelect = (newCategory) => {
+    if (selectedTransaction) {
+      onUpdateTransaction(selectedTransaction.id, newCategory);
+      setShowCategorySelector(false);
+      setSelectedTransaction(null);
+    }
   };
+  
+  // Calculate recent and frequent categories
+  const recentCategories = useMemo(() => {
+    const recent = [];
+    const seen = new Set();
+    
+    // Get last 50 transactions' categories
+    [...transactions]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 50)
+      .forEach(t => {
+        if (!seen.has(t.category)) {
+          recent.push(t.category);
+          seen.add(t.category);
+        }
+      });
+    
+    return recent.slice(0, 10);
+  }, [transactions]);
+  
+  const frequentCategories = useMemo(() => {
+    const counts = {};
+    transactions.forEach(t => {
+      counts[t.category] = (counts[t.category] || 0) + 1;
+    });
+    
+    return Object.entries(counts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([cat]) => cat)
+      .slice(0, 10);
+  }, [transactions]);
 
   const filteredTransactions = selectedMonth === 'all' 
     ? transactions 
@@ -194,46 +231,16 @@ const InteractiveTransactionTableSimple = ({
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="relative">
                       <button
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all hover:scale-105 active:scale-95 ${
-                          editingCategoryId === transaction.id
-                            ? 'ring-2 ring-blue-500'
-                            : 'hover:ring-2 hover:ring-gray-300'
-                        }`}
+                        className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:scale-105 active:scale-95 hover:ring-2 hover:ring-gray-300"
                         style={{
                           backgroundColor: `${categoryColors[transaction.category]}20`,
                           color: categoryColors[transaction.category]
                         }}
-                        onClick={() => handleCategoryClick(transaction.id)}
+                        onClick={() => handleCategoryClick(transaction)}
                       >
                         {transaction.category}
                       </button>
                       
-                      {editingCategoryId === transaction.id && (
-                        <div className="absolute z-20 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 category-grid-dropdown" style={{ minWidth: '600px', right: '0' }}>
-                          <div className="grid grid-cols-3 gap-2">
-                            {availableCategories.map(category => (
-                              <button
-                                key={category}
-                                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all hover:scale-105 flex items-center justify-center ${
-                                  category === transaction.category 
-                                    ? 'ring-2 ring-blue-500' 
-                                    : 'hover:ring-2 hover:ring-gray-300'
-                                }`}
-                                style={{
-                                  backgroundColor: `${categoryColors[category]}20`,
-                                  color: categoryColors[category]
-                                }}
-                                onClick={() => handleCategorySelect(transaction.id, category)}
-                              >
-                                {category}
-                                {category === transaction.category && (
-                                  <Check className="w-4 h-4 ml-2" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -262,6 +269,24 @@ const InteractiveTransactionTableSimple = ({
           )}
         </div>
       </div>
+      
+      {/* Smart Category Selector Modal */}
+      {showCategorySelector && selectedTransaction && (
+        <SmartCategorySelector
+          currentCategory={selectedTransaction.category}
+          onSelect={handleCategorySelect}
+          onClose={() => {
+            setShowCategorySelector(false);
+            setSelectedTransaction(null);
+          }}
+          availableCategories={availableCategories}
+          categoryColors={categoryColors}
+          transactionDescription={selectedTransaction.description}
+          transactionAmount={selectedTransaction.amount}
+          recentCategories={recentCategories}
+          frequentCategories={frequentCategories}
+        />
+      )}
     </div>
   );
 };
