@@ -125,6 +125,7 @@ const PDFUpload = ({ onDataUpload }) => {
   };
 
   const handleUpload = async () => {
+    console.log('=== PDF Upload Debug Start ===');
     if (jsFile) {
       return handleJsFileUpload();
     }
@@ -139,25 +140,50 @@ const PDFUpload = ({ onDataUpload }) => {
     setSuccess('');
 
     try {
+      console.log('Creating FormData with files:', files);
       const formData = new FormData();
       
       files.forEach((fileObj, index) => {
+        console.log(`Adding file ${index}: ${fileObj.file.name}, month: ${fileObj.month}, size: ${fileObj.file.size} bytes`);
         formData.append('files', fileObj.file);
         formData.append('months', fileObj.month);
       });
 
       // Use the Render API endpoint
       const apiUrl = process.env.REACT_APP_API_URL || 'https://financecompare.onrender.com';
+      console.log('API URL:', apiUrl);
+      console.log('Sending request to:', `${apiUrl}/api/parse-pdfs-batch`);
+      
       const response = await fetch(`${apiUrl}/api/parse-pdfs-batch`, {
         method: 'POST',
         body: formData
       });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
 
       let data;
+      let responseText;
       try {
-        data = await response.json();
+        responseText = await response.text();
+        console.log('Raw response text:', responseText.substring(0, 500)); // First 500 chars
+        
+        if (!responseText) {
+          console.error('Empty response from server');
+          throw new Error('Server returned empty response');
+        }
+        
+        data = JSON.parse(responseText);
+        console.log('Parsed response data:', {
+          hasTransactions: !!data.transactions,
+          transactionCount: data.transactions?.length || 0,
+          hasSummary: !!data.summary,
+          hasJsExport: !!data.js_export,
+          errorMessage: data.error
+        });
       } catch (jsonError) {
         console.error('Failed to parse response:', jsonError);
+        console.error('Response text that failed to parse:', responseText);
         throw new Error('Server returned invalid response. Please check if the API is running.');
       }
 
@@ -166,21 +192,34 @@ const PDFUpload = ({ onDataUpload }) => {
         throw new Error(data.error || `Failed to process PDFs (Error ${response.status})`);
       }
 
+      console.log('Processing complete. Summary:', data.summary);
+      
+      if (!data.transactions || data.transactions.length === 0) {
+        console.warn('No transactions found in response');
+        setError('No transactions found in the uploaded PDFs. The PDFs might be empty or in an unsupported format.');
+        return;
+      }
+      
       setProcessingResults(data);
       setSuccess(`Successfully processed ${data.transactions.length} transactions from ${files.length} PDFs`);
       
       // Pass transactions to parent component
       if (onDataUpload) {
+        console.log('Passing transactions to parent component');
         onDataUpload(data.transactions);
       }
+      
+      console.log('=== PDF Upload Debug End (Success) ===');
 
     } catch (err) {
       console.error('PDF Upload Error:', err);
+      console.error('Error stack:', err.stack);
       if (err.message.includes('Failed to fetch')) {
         setError('Unable to connect to the server. Please check if the API is running.');
       } else {
         setError(err.message || 'Failed to process PDFs');
       }
+      console.log('=== PDF Upload Debug End (Error) ===');
     } finally {
       setUploading(false);
     }

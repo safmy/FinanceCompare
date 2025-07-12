@@ -39,6 +39,9 @@ CORS(app)
 
 # Configure OpenAI
 openai.api_key = os.environ.get('OPENAI_API_KEY')
+print(f"OpenAI API Key configured: {'Yes' if openai.api_key else 'No'}")
+if not openai.api_key:
+    print("WARNING: OPENAI_API_KEY environment variable not set!")
 
 # Configure upload settings
 ALLOWED_EXTENSIONS = {'csv', 'pdf', 'xls', 'xlsx'}
@@ -55,23 +58,41 @@ def health_check():
 def test_pdf():
     """Test PDF extraction without parsing"""
     try:
+        print("\n--- Test PDF Endpoint Called ---")
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
+        print(f"File received: {file.filename}")
         pdf_content = file.read()
+        print(f"PDF size: {len(pdf_content)} bytes")
+        
+        if PDFProcessor is None:
+            print("ERROR: PDFProcessor is None")
+            return jsonify({'error': 'PDF processor not available'}), 500
         
         # Try to extract text
         processor = PDFProcessor()
         text = processor.extract_text_from_pdf(pdf_content)
         
-        return jsonify({
+        # Also check if it's a credit card statement
+        is_credit_card = processor.is_credit_card_statement(text) if text else False
+        
+        response_data = {
             'success': text is not None,
             'text_length': len(text) if text else 0,
             'first_500_chars': text[:500] if text else None,
-            'pdf_size': len(pdf_content)
-        })
+            'pdf_size': len(pdf_content),
+            'is_credit_card': is_credit_card,
+            'processor_used': PDFProcessor.__name__
+        }
+        
+        print(f"Test PDF Result: success={response_data['success']}, text_length={response_data['text_length']}")
+        return jsonify(response_data)
     except Exception as e:
+        print(f"ERROR in test_pdf: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
 @app.route('/api/parse-pdf', methods=['POST'])
@@ -178,6 +199,10 @@ def parse_pdf_vision():
 @app.route('/api/parse-pdfs-batch', methods=['POST', 'OPTIONS'])
 def parse_pdfs_batch():
     """Parse multiple PDFs at once"""
+    print("\n=== PDF Batch Processing Start ===")
+    print(f"Request method: {request.method}")
+    print(f"Request headers: {dict(request.headers)}")
+    
     # Handle preflight request
     if request.method == 'OPTIONS':
         response = jsonify({'status': 'ok'})
@@ -188,58 +213,106 @@ def parse_pdfs_batch():
         
     try:
         files = request.files.getlist('files')
+        print(f"Number of files received: {len(files)}")
+        
         if not files:
+            print("ERROR: No files provided")
             return jsonify({'error': 'No files provided'}), 400
         
         # Get months from request
         months = request.form.getlist('months')
+        print(f"Months received: {months}")
         
         pdf_data = []
         for i, file in enumerate(files):
+            print(f"\nProcessing file {i+1}: {file.filename}")
             if file and allowed_file(file.filename):
                 pdf_content = file.read()
+                print(f"  - File size: {len(pdf_content)} bytes")
                 pdf_base64 = base64.b64encode(pdf_content).decode()
                 
                 month = months[i] if i < len(months) else f'Month {i+1}'
+                source = 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
+                print(f"  - Month: {month}")
+                print(f"  - Source: {source}")
+                
                 pdf_data.append({
                     'content': pdf_base64,
                     'month': month,
                     'filename': file.filename,
-                    'source': 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
+                    'source': source
                 })
+            else:
+                print(f"  - SKIPPED: Invalid file type")
         
         # Process all PDFs
-        print(f"Processing {len(pdf_data)} PDFs")
+        print(f"\nProcessing {len(pdf_data)} PDFs with PDFProcessor")
         
         if PDFProcessor is None:
+            print("ERROR: PDFProcessor is None")
             return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
-            
+        
+        print(f"Using PDFProcessor: {PDFProcessor.__name__}")
         processor = PDFProcessor()
         all_transactions = processor.process_pdf_batch(pdf_data)
-        print(f"Found {len(all_transactions)} total transactions")
+        print(f"\nPDFProcessor returned {len(all_transactions)} total transactions")
+        
+        # Debug: Print first few transactions
+        if all_transactions:
+            print("\nFirst 3 transactions:")
+            for i, trans in enumerate(all_transactions[:3]):
+                print(f"  Transaction {i+1}: {trans}")
+        else:
+            print("\nWARNING: No transactions returned from PDFProcessor")
         
         # Auto-categorize transactions using GPT-4
         if all_transactions:
-            print(f"Auto-categorizing {len(all_transactions)} transactions...")
-            categorized = categorize_with_openai(all_transactions)
-            
-            # Apply categories back to transactions
-            for i, trans in enumerate(all_transactions):
-                if i < len(categorized):
-                    # Update category if it's currently "Other" or uncategorized
-                    if trans.get('category', 'Other') == 'Other':
-                        trans['category'] = categorized[i].get('category', 'Other')
+            print(f"\nAuto-categorizing {len(all_transactions)} transactions with OpenAI...")
+            try:
+                categorized = categorize_with_openai(all_transactions)
+                print(f"Categorization complete: {len(categorized)} categories returned")
+                
+                # Apply categories back to transactions
+                for i, trans in enumerate(all_transactions):
+                    if i < len(categorized):
+                        # Update category if it's currently "Other" or uncategorized
+                        old_category = trans.get('category', 'Other')
+                        new_category = categorized[i].get('category', 'Other')
+                        if old_category == 'Other' and new_category != 'Other':
+                            trans['category'] = new_category
+                            print(f"  Updated transaction {i+1} category: {old_category} -> {new_category}")
+            except Exception as cat_error:
+                print(f"ERROR during categorization: {cat_error}")
+                # Continue without categorization
+        else:
+            print("\nSkipping categorization - no transactions to categorize")
         
         # Generate JavaScript format
         js_content = generate_js_export(all_transactions)
         
-        return jsonify({
+        # Generate summary
+        summary = generate_summary(all_transactions)
+        print(f"\nSummary generated:")
+        print(f"  - Total spending: £{summary.get('total_spending', 0):.2f}")
+        print(f"  - Transaction count: {summary.get('transaction_count', 0)}")
+        print(f"  - Categories: {list(summary.get('categories', {}).keys())}")
+        
+        response_data = {
             'transactions': all_transactions,
             'js_export': js_content,
-            'summary': generate_summary(all_transactions)
-        })
+            'summary': summary
+        }
+        
+        print(f"\nReturning response with {len(all_transactions)} transactions")
+        print("=== PDF Batch Processing End (Success) ===")
+        
+        return jsonify(response_data)
         
     except Exception as e:
+        print(f"\nERROR in parse_pdfs_batch: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print("=== PDF Batch Processing End (Error) ===")
         return jsonify({'error': str(e)}), 500
 
 def generate_js_export(transactions):
@@ -510,6 +583,9 @@ def parse_excel_row(row: pd.Series, index: int) -> Dict[str, Any]:
 def categorize_with_openai(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Use OpenAI to categorize transactions"""
     try:
+        if not openai.api_key:
+            print("WARNING: OpenAI API key not set, skipping categorization")
+            return [{'category': 'Other', 'merchant': t.get('description', '')} for t in transactions]
         all_categorized = []
         
         # Process in batches of 40 to avoid token limits

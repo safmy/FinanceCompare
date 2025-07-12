@@ -17,60 +17,181 @@ except ImportError:
     
 import PyPDF2
 
+# Import credit card processor
+try:
+    from .credit_card_processor import CreditCardProcessor
+except ImportError:
+    from credit_card_processor import CreditCardProcessor
+
 class ImprovedMultilineProcessor:
     def __init__(self):
         self.openai_api_key = os.environ.get('OPENAI_API_KEY')
+        self.credit_card_processor = CreditCardProcessor()
+    
+    def is_credit_card_statement(self, text):
+        """Detect if the PDF is a credit card statement"""
+        if not text:
+            return False
+        
+        # First check for current account markers (to exclude)
+        if 'Your HSBC Advance details' in text or 'Your Bank Account details' in text:
+            return False
+        
+        # Check for credit card specific markers
+        credit_card_markers = [
+            'ReceivedByUsTransactionDateDetailsAmount',
+            'ReceivedByUs TransactionDate Details',  # With spaces
+            'ReceivedByUs',  # More specific marker
+            'Your Visa Card',
+            'Your Credit Card statement',
+            'CreditLimit',
+            'Credit Limit',
+            'APR',
+            'Minimumpayment',
+            'Minimum payment'
+        ]
+        
+        for marker in credit_card_markers:
+            if marker in text:
+                return True
+        
+        # Also check without spaces for better matching
+        text_no_spaces = text.replace(' ', '')
+        markers_no_spaces = ['YourTransactionDetails', 'CreditLimit', 'Minimumpayment']
+        for marker in markers_no_spaces:
+            if marker in text_no_spaces:
+                return True
+        
+        return False
     
     def extract_text_from_pdf(self, pdf_content):
         """Extract text from PDF - try multiple methods"""
+        print(f"\n--- Extracting text from PDF (size: {len(pdf_content)} bytes) ---")
         try:
             pdf_file = BytesIO(pdf_content)
             all_text = ""
             
             # Try pdfplumber first
             if HAS_PDFPLUMBER:
+                print("Trying pdfplumber...")
                 try:
                     with pdfplumber.open(pdf_file) as pdf:
-                        for page in pdf.pages:
-                            page_text = page.extract_text()
-                            if page_text:
-                                all_text += page_text + "\n"
+                        for i, page in enumerate(pdf.pages):
+                            try:
+                                # Try with different extraction options
+                                page_text = page.extract_text()
+                                if not page_text:
+                                    # Try with x_tolerance and y_tolerance
+                                    page_text = page.extract_text(
+                                        x_tolerance=3,
+                                        y_tolerance=3
+                                    )
+                                if page_text:
+                                    all_text += page_text + "\n"
+                                    print(f"  Page {i+1}: extracted {len(page_text)} chars")
+                            except Exception as page_e:
+                                print(f"  Page {i+1} error: {page_e}")
+                                continue
                     
                     if all_text:
-                        print(f"pdfplumber extracted {len(all_text)} characters")
+                        print(f"pdfplumber SUCCESS: extracted {len(all_text)} characters")
+                        print(f"First 200 chars: {all_text[:200]}")
                         return all_text
+                    else:
+                        print("pdfplumber extracted no text")
                 except Exception as e:
-                    print(f"pdfplumber error: {e}")
+                    print(f"pdfplumber ERROR: {e}")
+                    # Reset file pointer for next attempt
+                    pdf_file.seek(0)
             
             # Fallback to PyPDF2
+            print("\nTrying PyPDF2...")
             pdf_file.seek(0)
             try:
-                pdf_reader = PyPDF2.PdfReader(pdf_file, strict=False)
+                # Try with strict=False first
+                try:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file, strict=False)
+                except Exception as e:
+                    print(f"PyPDF2 initial error (trying lenient mode): {e}")
+                    pdf_file.seek(0)
+                    # Try creating a new BytesIO from the content
+                    pdf_reader = PyPDF2.PdfReader(BytesIO(pdf_content), strict=False)
+                
+                print(f"PyPDF2: Found {len(pdf_reader.pages)} pages")
                 for i, page in enumerate(pdf_reader.pages):
                     try:
                         page_text = page.extract_text()
-                        all_text += page_text + "\n"
+                        if page_text:
+                            all_text += page_text + "\n"
+                            print(f"  Page {i+1}: extracted {len(page_text)} chars")
                     except Exception as e:
-                        print(f"Error on page {i+1}: {e}")
-                        continue
+                        print(f"  Error on page {i+1}: {e}")
+                        # Try alternative extraction method
+                        try:
+                            if hasattr(page, 'extractText'):
+                                page_text = page.extractText()
+                                if page_text:
+                                    all_text += page_text + "\n"
+                                    print(f"  Page {i+1}: extracted {len(page_text)} chars (using extractText)")
+                        except:
+                            continue
                 
-                print(f"PyPDF2 extracted {len(all_text)} characters")
+                if all_text:
+                    print(f"PyPDF2 SUCCESS: extracted {len(all_text)} characters")
+                    print(f"First 200 chars: {all_text[:200]}")
+                else:
+                    print("PyPDF2 extracted no text")
             except Exception as e:
-                print(f"PyPDF2 error: {e}")
+                print(f"PyPDF2 ERROR: {e}")
+            
+            if not all_text:
+                print("WARNING: No text extracted from PDF")
+                
+                # Last resort: Try reading as corrupted PDF
+                print("\nTrying last resort: reading as potentially corrupted PDF...")
+                pdf_file.seek(0)
+                try:
+                    # Read raw bytes and look for text patterns
+                    raw_content = pdf_file.read()
+                    # Simple text extraction from raw PDF
+                    import re
+                    # Look for text between BT and ET markers
+                    text_pattern = rb'BT[^>]*?>([^<]+)<[^>]*?ET'
+                    matches = re.findall(text_pattern, raw_content)
+                    if matches:
+                        extracted_texts = []
+                        for match in matches:
+                            try:
+                                text = match.decode('utf-8', errors='ignore')
+                                if text.strip():
+                                    extracted_texts.append(text)
+                            except:
+                                continue
+                        if extracted_texts:
+                            all_text = ' '.join(extracted_texts)
+                            print(f"Raw extraction found {len(all_text)} characters")
+                except Exception as raw_e:
+                    print(f"Raw extraction error: {raw_e}")
             
             return all_text if all_text else None
             
         except Exception as e:
             print(f"Error extracting PDF: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def parse_transactions(self, text, month_name, source='Current Account'):
         """Parse transactions from multi-line bank statement format"""
+        print(f"\n--- Parsing transactions for {month_name} ---")
         if not text:
+            print("ERROR: No text to parse")
             return []
         
+        print(f"Text length: {len(text)} characters")
         transactions = []
         lines = text.split('\n')
+        print(f"Number of lines: {len(lines)}")
         
         # Look for header patterns to understand column structure
         paid_in_column = False
@@ -88,8 +209,15 @@ class ImprovedMultilineProcessor:
         while i < len(lines):
             line = lines[i].strip()
             
-            # Skip until we find "Your Bank Account details"
-            if 'Your Bank Account details' not in line:
+            # Skip until we find transaction section header
+            # Different banks use different headers
+            if not any(header in line for header in [
+                'Your Bank Account details',
+                'Your HSBC Advance details',
+                'Your account details',
+                'Account details',
+                'Transaction details'
+            ]):
                 i += 1
                 continue
             
@@ -125,21 +253,30 @@ class ImprovedMultilineProcessor:
         # Filter out invalid transactions
         valid_transactions = [t for t in transactions if t and t['amount'] != 0]
         
-        print(f"Parsed {len(valid_transactions)} transactions from {month_name}")
+        print(f"\nParsed {len(valid_transactions)} valid transactions from {month_name}")
+        if valid_transactions:
+            print("First 3 transactions:")
+            for i, trans in enumerate(valid_transactions[:3]):
+                print(f"  {i+1}. Date: {trans['date']}, Amount: £{trans['amount']:.2f}, Desc: {trans['description'][:50]}...")
+        
         return valid_transactions
     
     def extract_transactions_for_date(self, lines, date_line_idx, date, first_line_remainder, has_paid_in, has_paid_out):
         """Extract all transactions for a given date"""
         transactions = []
+        current_idx = date_line_idx
         
         # Process first line remainder if it has content
         if first_line_remainder:
             trans = self.build_transaction_from_lines(lines, date_line_idx, date, first_line_remainder, has_paid_in, has_paid_out)
             if trans:
                 transactions.append(trans)
+                # Skip lines consumed by the first transaction
+                lines_consumed = self.count_lines_consumed(lines, date_line_idx, first_line_remainder)
+                current_idx = date_line_idx + lines_consumed
         
         # Look ahead for more transactions on this date
-        i = date_line_idx + 1
+        i = current_idx + 1
         while i < len(lines):
             line = lines[i].strip()
             
@@ -147,21 +284,61 @@ class ImprovedMultilineProcessor:
             if re.match(r'^\d{2}\s+\w{3}\s+\d{2}', line) or any(m in line for m in ['BALANCECARRIEDFORWARD', 'Prospect Place']):
                 break
             
-            # Process transaction lines
+            # Skip empty lines
+            if not line:
+                i += 1
+                continue
+            
+            # Process transaction lines - any line with transaction prefixes or continuation
             if line.startswith(')))'):
                 # Continuation transaction
                 trans = self.build_transaction_from_lines(lines, i, date, line, has_paid_in, has_paid_out)
                 if trans:
                     transactions.append(trans)
+                    # Skip consumed lines
+                    lines_consumed = self.count_lines_consumed(lines, i, line)
+                    i += max(1, lines_consumed)
+                else:
+                    i += 1
             elif any(line.startswith(t) for t in ['VIS ', 'DD ', 'CR ', 'TFR ', 'BP ', 'SO ', 'ATM ']):
                 # New transaction
                 trans = self.build_transaction_from_lines(lines, i, date, line, has_paid_in, has_paid_out)
                 if trans:
                     transactions.append(trans)
+                    # Skip consumed lines
+                    lines_consumed = self.count_lines_consumed(lines, i, line)
+                    i += max(1, lines_consumed)
+                else:
+                    i += 1
+            else:
+                i += 1
+        
+        return transactions
+    
+    def count_lines_consumed(self, lines, start_idx, first_line):
+        """Count how many lines were consumed by a transaction"""
+        # This is a simplified version - in reality would need to track exact consumption
+        consumed = 0
+        i = start_idx + 1
+        
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Stop at next transaction or date
+            if (not line or 
+                re.match(r'^\d{2}\s+\w{3}\s+\d{2}', line) or 
+                line.startswith(')))') or 
+                any(line.startswith(t) for t in ['VIS ', 'DD ', 'CR ', 'TFR ', 'BP ', 'SO ', 'ATM '])):
+                break
+            
+            # Check if this line has an amount (end of transaction)
+            if re.search(r'\d{1,3}(?:,\d{3})*\.\d{2}(?:\s+\d{1,3}(?:,\d{3})*\.\d{2}\s*D?)?$', line):
+                consumed = i - start_idx
+                break
             
             i += 1
         
-        return transactions
+        return consumed
     
     def build_transaction_from_lines(self, lines, start_idx, date, first_line, has_paid_in, has_paid_out):
         """Build a complete transaction from multiple lines"""
@@ -177,11 +354,19 @@ class ImprovedMultilineProcessor:
         if any(marker in first_line for marker in ['CR ', 'TFR ']):
             is_credit = True
         
-        # For transactions starting with a type code
-        if any(first_line.startswith(t) for t in ['VIS ', 'DD ', 'CR ', 'TFR ', 'BP ', 'SO ', 'ATM ']):
-            description_parts.append(first_line)
-        elif first_line:
-            description_parts.append(first_line)
+        # Check if first line already contains amount
+        first_line_amount = re.search(r'(\d{1,3}(?:,\d{3})*\.\d{2})(?:\s+\d{1,3}(?:,\d{3})*\.\d{2}\s*D?)?$', first_line)
+        if first_line_amount:
+            # Extract amount from first line
+            amount = float(first_line_amount.group(1).replace(',', ''))
+            # Only add the description part (before amount) to description_parts
+            desc_part = first_line[:first_line_amount.start()].strip()
+            if desc_part:
+                description_parts.append(desc_part)
+        else:
+            # No amount in first line, add the whole line
+            if first_line:
+                description_parts.append(first_line)
         
         # Look at next lines for completion
         i = start_idx + 1
@@ -237,7 +422,7 @@ class ImprovedMultilineProcessor:
         # Debit transactions (money out) are negative
         
         # Check description for credit indicators
-        credit_indicators = ['CR ', 'TFR ', 'WEEKLY SUBSISTENCE', 'CHILD BENEFIT', 'GIFT', 
+        credit_indicators = ['CR ', 'TFR ', 'CHILD BENEFIT', 'GIFT', 
                            'PAYMENT THANK YOU', 'PAYMENT RECEIVED', 'SALARY', 'PAYSTREAM']
         
         if is_credit or any(indicator in full_description.upper() for indicator in credit_indicators):
@@ -342,6 +527,9 @@ class ImprovedMultilineProcessor:
     
     def process_pdf_batch(self, pdf_files_data):
         """Process multiple PDFs"""
+        print("\n=== ImprovedMultilineProcessor: Processing PDF Batch ===")
+        print(f"Number of PDFs to process: {len(pdf_files_data)}")
+        
         all_transactions = []
         transaction_id = 1
         
@@ -356,7 +544,14 @@ class ImprovedMultilineProcessor:
                 text = self.extract_text_from_pdf(pdf_content)
                 
                 if text:
-                    transactions = self.parse_transactions(text, month_name, source)
+                    # Check if this is a credit card statement
+                    if self.is_credit_card_statement(text):
+                        print("Detected credit card statement - using credit card processor")
+                        # Use the credit card processor directly
+                        transactions = self.credit_card_processor.parse_transactions(text, month_name, source)
+                    else:
+                        # Use regular parser for current account statements
+                        transactions = self.parse_transactions(text, month_name, source)
                     
                     # Add IDs and month info
                     for trans in transactions:
