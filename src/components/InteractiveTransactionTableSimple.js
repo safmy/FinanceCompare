@@ -113,8 +113,19 @@ const InteractiveTransactionTableSimple = ({
     : transactions.filter(t => t.month === selectedMonth);
 
   const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    const aValue = sortField === 'date' ? new Date(a.date) : a[sortField];
-    const bValue = sortField === 'date' ? new Date(b.date) : b[sortField];
+    let aValue, bValue;
+    
+    if (sortField === 'date') {
+      aValue = new Date(a.date);
+      bValue = new Date(b.date);
+    } else if (sortField === 'amount') {
+      // Use absolute values for sorting amounts
+      aValue = Math.abs(a.amount);
+      bValue = Math.abs(b.amount);
+    } else {
+      aValue = a[sortField];
+      bValue = b[sortField];
+    }
     
     if (sortDirection === 'asc') {
       return aValue > bValue ? 1 : -1;
