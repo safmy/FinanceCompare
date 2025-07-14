@@ -50,6 +50,7 @@ const InteractiveTransactionTableSimple = ({
       setSortField(field);
       setSortDirection('asc');
     }
+    console.log('Sorting by:', field, 'Direction:', sortField === field ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'asc');
   };
 
   const handleClickOutside = (e) => {
@@ -122,10 +123,17 @@ const InteractiveTransactionTableSimple = ({
       // Use absolute values for sorting amounts
       aValue = Math.abs(a.amount);
       bValue = Math.abs(b.amount);
+      // Debug log for first few comparisons
+      if (Math.random() < 0.01) {
+        console.log('Comparing amounts:', a.description.substring(0, 20), aValue, 'vs', b.description.substring(0, 20), bValue);
+      }
     } else {
       aValue = a[sortField];
       bValue = b[sortField];
     }
+    
+    // Compare values
+    if (aValue === bValue) return 0;
     
     if (sortDirection === 'asc') {
       return aValue > bValue ? 1 : -1;
