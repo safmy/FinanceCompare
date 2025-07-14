@@ -167,6 +167,10 @@ const SmartCategorySelector = ({
           e.preventDefault();
           // Tab through category groups
           break;
+          
+        default:
+          // Handle other keys
+          break;
       }
     };
 

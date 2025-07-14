@@ -7,15 +7,17 @@ import BudgetAnalysis from './components/BudgetAnalysis';
 import DataUpload from './components/DataUpload';
 import PDFUpload from './components/PDFUpload';
 import ExportTransactions from './components/ExportTransactions';
+import BulkRecategorize from './components/BulkRecategorize';
 import { transactions as sampleTransactions, categoryColors as defaultColors } from './data/currentAccountData';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Calendar, TrendingUp, DollarSign, Upload, Search, RefreshCw } from 'lucide-react';
+import { Calendar, TrendingUp, DollarSign, Upload, Search, RefreshCw, Filter } from 'lucide-react';
 import { recategorizeTransactions } from './utils/categorizer';
 
 function App() {
   const [transactions, setTransactions] = useState(sampleTransactions);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showBulkRecategorize, setShowBulkRecategorize] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState('all');
   const [draggedTransaction, setDraggedTransaction] = useState(null);
@@ -356,6 +358,14 @@ function App() {
                       </button>
                     )}
                     <button
+                      onClick={() => setShowBulkRecategorize(true)}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center"
+                      title="Search and bulk recategorize transactions"
+                    >
+                      <Filter className="w-4 h-4 mr-2" />
+                      Bulk Recategorize
+                    </button>
+                    <button
                       onClick={() => setShowCategoryManager(true)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
                     >
@@ -531,6 +541,17 @@ function App() {
           categoryColors={categoryColors}
           onClose={() => setShowCategoryManager(false)}
           onUpdateCategories={handleCategoryUpdate}
+        />
+      )}
+
+      {/* Bulk Recategorize Modal */}
+      {showBulkRecategorize && (
+        <BulkRecategorize
+          transactions={filteredTransactions}
+          categories={Object.keys(categoryColors)}
+          categoryColors={categoryColors}
+          onClose={() => setShowBulkRecategorize(false)}
+          onRecategorize={handleRecategorize}
         />
       )}
     </div>

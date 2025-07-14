@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { format } from 'date-fns';
-import { ChevronUp, ChevronDown, X, Check } from 'lucide-react';
+import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import SmartCategorySelector from './SmartCategorySelector';
 import '../styles/animations.css';
 

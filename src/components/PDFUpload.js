@@ -7,7 +7,7 @@ const PDFUpload = ({ onDataUpload }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [processingResults, setProcessingResults] = useState(null);
-  const [jsFile, setJsFile] = useState(null);
+  const [jsFiles, setJsFiles] = useState([]);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -17,11 +17,11 @@ const PDFUpload = ({ onDataUpload }) => {
   const handleFileSelect = (event) => {
     const selectedFiles = Array.from(event.target.files);
     const pdfFiles = selectedFiles.filter(file => file.type === 'application/pdf');
-    const jsFiles = selectedFiles.filter(file => file.name.endsWith('.js'));
+    const jsFilesList = selectedFiles.filter(file => file.name.endsWith('.js'));
     
-    if (jsFiles.length > 0) {
-      // Handle JS file upload
-      setJsFile(jsFiles[0]);
+    if (jsFilesList.length > 0) {
+      // Handle JS file upload - now supports multiple files
+      setJsFiles(jsFilesList);
       setFiles([]);
       setError('');
       return;
@@ -71,54 +71,110 @@ const PDFUpload = ({ onDataUpload }) => {
   };
 
   const handleJsFileUpload = async () => {
-    if (!jsFile) return;
+    if (!jsFiles || jsFiles.length === 0) return;
     
     setUploading(true);
     setError('');
     setSuccess('');
     
     try {
-      const content = await jsFile.text();
+      let allTransactions = [];
+      const fileResults = [];
       
-      // Parse the JS file to extract transactions
-      const transactionMatch = content.match(/export\s+const\s+transactions\s*=\s*(\[[\s\S]*?\]);/);
-      if (!transactionMatch) {
-        throw new Error('Invalid JavaScript file format');
-      }
-      
-      // Use a safer approach to parse the JavaScript array
-      let transactionsData;
-      try {
-        // Try to parse as JSON first (in case it's already valid JSON)
-        transactionsData = JSON.parse(transactionMatch[1]);
-      } catch (e) {
-        // If that fails, use Function constructor with proper sandboxing
+      // Process each JS file
+      for (const jsFile of jsFiles) {
         try {
-          // eslint-disable-next-line no-new-func
-          const parseFunc = new Function('return ' + transactionMatch[1]);
-          transactionsData = parseFunc();
+          const content = await jsFile.text();
           
-          // Validate the result
-          if (!Array.isArray(transactionsData)) {
-            throw new Error('Invalid transactions data: expected an array');
+          // Parse the JS file to extract transactions
+          const transactionMatch = content.match(/export\s+const\s+transactions\s*=\s*(\[[\s\S]*?\]);/);
+          if (!transactionMatch) {
+            fileResults.push({ file: jsFile.name, success: false, error: 'Invalid format' });
+            continue;
           }
-        } catch (funcError) {
-          throw new Error('Failed to parse transactions data: ' + funcError.message);
+          
+          // Use a safer approach to parse the JavaScript array
+          let transactionsData;
+          try {
+            // Try to parse as JSON first (in case it's already valid JSON)
+            transactionsData = JSON.parse(transactionMatch[1]);
+          } catch (e) {
+            // If that fails, use Function constructor with proper sandboxing
+            try {
+              // eslint-disable-next-line no-new-func
+              const parseFunc = new Function('return ' + transactionMatch[1]);
+              transactionsData = parseFunc();
+              
+              // Validate the result
+              if (!Array.isArray(transactionsData)) {
+                throw new Error('Invalid transactions data: expected an array');
+              }
+            } catch (funcError) {
+              throw new Error('Failed to parse transactions data: ' + funcError.message);
+            }
+          }
+          
+          // Add source file information to each transaction
+          const transactionsWithSource = transactionsData.map(t => ({
+            ...t,
+            sourceFile: jsFile.name
+          }));
+          
+          allTransactions = allTransactions.concat(transactionsWithSource);
+          fileResults.push({ 
+            file: jsFile.name, 
+            success: true, 
+            count: transactionsData.length 
+          });
+          
+        } catch (fileError) {
+          fileResults.push({ 
+            file: jsFile.name, 
+            success: false, 
+            error: fileError.message 
+          });
         }
       }
       
-      setSuccess(`Successfully loaded ${transactionsData.length} transactions from JavaScript file`);
+      // Remove duplicate transactions based on date, description, and amount
+      const uniqueTransactions = [];
+      const seen = new Set();
       
-      // Pass transactions to parent component
-      if (onDataUpload) {
-        onDataUpload(transactionsData);
+      allTransactions.forEach(transaction => {
+        const key = `${transaction.date}-${transaction.description}-${transaction.amount}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueTransactions.push(transaction);
+        }
+      });
+      
+      // Sort transactions by date
+      uniqueTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      // Generate success message
+      const successCount = fileResults.filter(r => r.success).length;
+      const duplicatesRemoved = allTransactions.length - uniqueTransactions.length;
+      
+      let successMessage = `Successfully loaded ${uniqueTransactions.length} unique transactions from ${successCount}/${jsFiles.length} file(s)`;
+      if (duplicatesRemoved > 0) {
+        successMessage += ` (${duplicatesRemoved} duplicates removed)`;
       }
       
-      // Clear the file
-      setJsFile(null);
+      setSuccess(successMessage);
+      
+      // Show detailed results
+      console.log('File processing results:', fileResults);
+      
+      // Pass transactions to parent component
+      if (onDataUpload && uniqueTransactions.length > 0) {
+        onDataUpload(uniqueTransactions);
+      }
+      
+      // Clear the files
+      setJsFiles([]);
       
     } catch (err) {
-      setError(err.message || 'Failed to load JavaScript file');
+      setError(err.message || 'Failed to load JavaScript files');
     } finally {
       setUploading(false);
     }
@@ -126,7 +182,7 @@ const PDFUpload = ({ onDataUpload }) => {
 
   const handleUpload = async () => {
     console.log('=== PDF Upload Debug Start ===');
-    if (jsFile) {
+    if (jsFiles && jsFiles.length > 0) {
       return handleJsFileUpload();
     }
     
@@ -272,32 +328,39 @@ const PDFUpload = ({ onDataUpload }) => {
         </label>
         
         <p className="mt-4 text-sm text-gray-500">
-          Supports multiple PDF files or a single JS transactions file
+          Supports multiple PDF files or multiple JS transactions files
         </p>
       </div>
 
-      {/* Selected JS File */}
-      {jsFile && (
+      {/* Selected JS Files */}
+      {jsFiles.length > 0 && (
         <div className="mt-6">
-          <h3 className="font-semibold mb-3">Selected JavaScript File:</h3>
-          <div className="flex items-center justify-between bg-gray-50 p-3 rounded">
-            <div className="flex items-center space-x-3">
-              <FileText className="w-5 h-5 text-gray-500" />
-              <span className="text-sm">{jsFile.name}</span>
-            </div>
-            <button
-              onClick={() => setJsFile(null)}
-              className="text-red-500 hover:text-red-700"
-              disabled={uploading}
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <h3 className="font-semibold mb-3">Selected JavaScript Files ({jsFiles.length}):</h3>
+          <div className="space-y-2 mb-4">
+            {jsFiles.map((file, index) => (
+              <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+                <div className="flex items-center space-x-3">
+                  <FileText className="w-5 h-5 text-gray-500" />
+                  <span className="text-sm">{file.name}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const newFiles = jsFiles.filter((_, i) => i !== index);
+                    setJsFiles(newFiles);
+                  }}
+                  className="text-red-500 hover:text-red-700"
+                  disabled={uploading}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ))}
           </div>
           
           <button
             onClick={handleUpload}
             disabled={uploading}
-            className={`mt-4 w-full py-3 ${
+            className={`w-full py-3 ${
               uploading 
                 ? 'bg-gray-400 cursor-not-allowed' 
                 : 'bg-green-600 hover:bg-green-700'
@@ -306,15 +369,19 @@ const PDFUpload = ({ onDataUpload }) => {
             {uploading ? (
               <>
                 <Loader className="w-5 h-5 mr-2 animate-spin" />
-                Loading JavaScript file...
+                Processing JavaScript files...
               </>
             ) : (
               <>
                 <Upload className="w-5 h-5 mr-2" />
-                Load Transactions
+                Combine & Load Transactions
               </>
             )}
           </button>
+          
+          <p className="mt-2 text-sm text-gray-600 text-center">
+            Duplicate transactions will be automatically removed
+          </p>
         </div>
       )}
 
