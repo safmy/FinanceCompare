@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, X, Check } from 'lucide-react';
+import { Search, RefreshCw, X } from 'lucide-react';
 
 const BulkRecategorize = ({ transactions, categories, categoryColors, onClose, onRecategorize }) => {
   const [searchQuery, setSearchQuery] = useState('');
