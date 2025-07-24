@@ -9,7 +9,8 @@ A comprehensive React-based financial dashboard for analyzing your spending patt
 - **Interactive Category Breakdown**: Click on any category to see detailed transactions
 - **Monthly Trends**: Visualize spending patterns over time
 - **Budget Analysis**: Track spending against budget targets
-- **CSV Upload**: Import your actual bank statements
+- **Multi-Format Support**: Import bank statements (CSV, PDF), including PayPal statements
+- **AI-Powered Categorization**: Automatically categorize transactions using OpenAI
 - **Responsive Design**: Works on desktop and mobile
 - **Date Range Filtering**: View all time or specific periods
 
@@ -23,12 +24,21 @@ npm install
 
 ### 2. Add Your Transaction Data
 
-#### Option A: Upload CSV File
+#### Option A: Upload PDF Statements
+1. Export your bank/PayPal statements as PDF
+2. Use the "Upload" tab in the dashboard
+3. Supported formats:
+   - Bank Current Account statements
+   - Credit Card statements
+   - PayPal monthly statements (MSR format)
+4. The system automatically detects the statement type and extracts transactions
+
+#### Option B: Upload CSV File
 1. Export your bank statements as CSV
 2. Use the "Upload" tab in the dashboard
 3. Follow the format: `Date,Description,Amount,Category`
 
-#### Option B: Manually Edit Sample Data
+#### Option C: Manually Edit Sample Data
 Edit `src/data/sampleData.js` with your actual transactions:
 
 ```javascript
@@ -143,6 +153,21 @@ Create a `.env` file for any API keys or configuration:
 ```
 REACT_APP_API_KEY=your-api-key
 ```
+
+### For PDF Processing API
+
+The PDF processing requires a backend API with the following environment variables:
+
+```
+OPENAI_API_KEY=your-openai-api-key  # For AI-powered categorization
+GOOGLE_CLOUD_CREDENTIALS=your-google-cloud-credentials-json  # For OCR processing
+```
+
+The API supports:
+- Google Vision API for OCR
+- Document AI for enhanced PDF processing
+- OpenAI GPT-4 for intelligent transaction categorization
+- Specialized processors for different statement types (Bank, Credit Card, PayPal)
 
 ## Troubleshooting
 

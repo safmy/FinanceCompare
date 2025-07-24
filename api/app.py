@@ -34,6 +34,14 @@ except ImportError:
                 print(f"Error importing PDF processors: {e}")
                 PDFProcessor = None
 
+# Import PayPal processor
+try:
+    from paypal_processor import PayPalStatementProcessor
+    print("PayPal processor imported successfully")
+except ImportError as e:
+    print(f"Error importing PayPal processor: {e}")
+    PayPalStatementProcessor = None
+
 app = Flask(__name__)
 CORS(app)
 
@@ -179,16 +187,24 @@ def parse_pdf_vision():
         pdf_content = file.read()
         pdf_base64 = base64.b64encode(pdf_content).decode()
         
-        # Process with Google Vision
-        if PDFProcessor is None:
-            return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
-            
-        processor = PDFProcessor()
+        # Detect source type
+        filename_lower = file.filename.lower()
+        if 'paypal' in filename_lower or 'msr' in filename_lower:
+            source = 'PayPal'
+            if PayPalStatementProcessor is None:
+                return jsonify({'error': 'PayPal processor not available. Check server logs.'}), 500
+            processor = PayPalStatementProcessor()
+        else:
+            source = 'Current Account' if 'current' in filename_lower else 'Credit Card'
+            if PDFProcessor is None:
+                return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
+            processor = PDFProcessor()
+        
         transactions = processor.process_pdf_batch([{
             'content': pdf_base64,
             'month': month,
             'filename': file.filename,
-            'source': 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
+            'source': source
         }])
         
         return jsonify({'transactions': transactions})
@@ -232,7 +248,16 @@ def parse_pdfs_batch():
                 pdf_base64 = base64.b64encode(pdf_content).decode()
                 
                 month = months[i] if i < len(months) else f'Month {i+1}'
-                source = 'Current Account' if 'current' in file.filename.lower() else 'Credit Card'
+                
+                # Detect source type from filename
+                filename_lower = file.filename.lower()
+                if 'paypal' in filename_lower or 'msr' in filename_lower:
+                    source = 'PayPal'
+                elif 'current' in filename_lower:
+                    source = 'Current Account'
+                else:
+                    source = 'Credit Card'
+                
                 print(f"  - Month: {month}")
                 print(f"  - Source: {source}")
                 
@@ -246,16 +271,40 @@ def parse_pdfs_batch():
                 print(f"  - SKIPPED: Invalid file type")
         
         # Process all PDFs
-        print(f"\nProcessing {len(pdf_data)} PDFs with PDFProcessor")
+        print(f"\nProcessing {len(pdf_data)} PDFs")
         
-        if PDFProcessor is None:
-            print("ERROR: PDFProcessor is None")
-            return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
+        # Separate PayPal and non-PayPal PDFs
+        paypal_pdfs = [pdf for pdf in pdf_data if pdf['source'] == 'PayPal']
+        other_pdfs = [pdf for pdf in pdf_data if pdf['source'] != 'PayPal']
         
-        print(f"Using PDFProcessor: {PDFProcessor.__name__}")
-        processor = PDFProcessor()
-        all_transactions = processor.process_pdf_batch(pdf_data)
-        print(f"\nPDFProcessor returned {len(all_transactions)} total transactions")
+        all_transactions = []
+        
+        # Process PayPal statements
+        if paypal_pdfs:
+            print(f"\nProcessing {len(paypal_pdfs)} PayPal PDFs")
+            if PayPalStatementProcessor is None:
+                print("ERROR: PayPalStatementProcessor is None")
+                return jsonify({'error': 'PayPal processor not available. Check server logs.'}), 500
+            
+            paypal_processor = PayPalStatementProcessor()
+            paypal_transactions = paypal_processor.process_pdf_batch(paypal_pdfs)
+            all_transactions.extend(paypal_transactions)
+            print(f"PayPal processor returned {len(paypal_transactions)} transactions")
+        
+        # Process other statements
+        if other_pdfs:
+            print(f"\nProcessing {len(other_pdfs)} bank statement PDFs")
+            if PDFProcessor is None:
+                print("ERROR: PDFProcessor is None")
+                return jsonify({'error': 'PDF processor not available. Check server logs.'}), 500
+            
+            print(f"Using PDFProcessor: {PDFProcessor.__name__}")
+            processor = PDFProcessor()
+            bank_transactions = processor.process_pdf_batch(other_pdfs)
+            all_transactions.extend(bank_transactions)
+            print(f"Bank processor returned {len(bank_transactions)} transactions")
+        
+        print(f"\nTotal transactions from all processors: {len(all_transactions)}")
         
         # Debug: Print first few transactions
         if all_transactions:
